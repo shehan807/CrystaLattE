@@ -4,6 +4,7 @@ from jaxopt import BFGS
 import jax.numpy as jnp
 import numpy as np
 import qcelemental as qcel
+import os
 
 # U_Pol START
 import time
@@ -202,6 +203,78 @@ def openmm_inputs_polarization_energy(
     Uind_openmm = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
     return Uind_openmm
 
+def polarization_energy_function(
+    qcel_mol: qcel.models.Molecule,
+    cif_output: str,
+    nmers: dict,
+    keynmer: str,
+    nmer: dict,
+    rminseps: str,
+    rcomseps: str,
+    cle_run_type: list,
+    method="drude_oscillator",
+    bsse_type=None,
+    job_memory=None,
+    verbose=0,
+    **kwargs,
+):
+    """
+    Every crystalatte energy function plugin must accept the above arguments.
+
+    Takes the `nmers` dictionary; `keynmer`, the key of a given N-mer of
+    the N-mers dictionary;
+
+    Results are stored in the `nmer` dictionary under the key `nambe` standing
+    for non-additive many-body energy.
+
+    kwargs passed to crystalatte.main() are passed to the energy function
+    allowing the user to specify any additional arguments.
+    """
+    pdb_file = kwargs.get("pdb_file", None)
+    xml_file = kwargs.get("xml_file", None)
+    residue_file = kwargs.get("residue_file", None)
+    if pdb_file is None or xml_file is None or residue_file is None:
+        raise ValueError("pdb_file, xml_file, and residue_file must be specified")
+    print(qcel_mol)
+    n_body_energy = -0.0105 
+    with open(pdb_file, "r") as f:
+        pdb = f.readlines()
+    # update xyz coordinates with qcel_mol.geometry
+
+
+    if len(nmer["monomers"]) == 3:
+        m1, m2, m3 = qcel_mol.get_fragment(0), qcel_mol.get_fragment(1), qcel_mol.get_fragment(2)
+        RA1, RA2, RA3 = m1.geometry, m2.geometry, m3.geometry
+        ZA1, ZA2, ZA3 = m1.atomic_numbers, m2.atomic_numbers, m3.atomic_numbers
+        print(RA1, RA2, RA3)
+        print(ZA1, ZA2, ZA3)
+        # need non-additive many body energy
+        # and 1-body energies, run polarization energy function, and subtract, ie
+        # Trimers: ΔE(3)ijk = Eijk − (ΔEij + ΔEik + ΔEjk) − (Ei + Ej + Ek)
+        polarization_energy = openmm_inputs_polarization_energy(
+            pdb_file=pdb_file,
+            xml_file=xml_file,
+            residue_file=residue_file,
+        )
+        nmer["nambe"] = polarization_energy
+    elif len(nmer["monomers"]) == 2:
+        # Dimers: ΔE(2)ij = Eij − Ei − Ej
+        m1, m2 = qcel_mol.get_fragment(0), qcel_mol.get_fragment(1)
+        RA1, RA2 = m1.geometry, m2.geometry
+        ZA1, ZA2 = m1.atomic_numbers, m2.atomic_numbers
+        print(RA1, RA2)
+        print(ZA1, ZA2)
+        polarization_energy = openmm_inputs_polarization_energy(
+            pdb_file=pdb_file,
+            xml_file=xml_file,
+            residue_file=residue_file,
+        )
+        polarization_energy /= 2625.5 # convert from kJ/mol to Hartree
+        nmer["nambe"] = polarization_energy
+    else:
+        raise ValueError("N-mer size not supported")
+    return
+
 
 # U_Pol END
 
@@ -231,8 +304,6 @@ def example_energy_function(
 
     kwargs passed to crystalatte.main() are passed to the energy function
     allowing the user to specify any additional arguments.
-
-    Questions: Why are there no charge or multiplictity arguments anywhere in the code?
     """
     example_arg = kwargs.get("example_extra_arg", 0.0)
     print(f"Example extra argument: {example_arg}")

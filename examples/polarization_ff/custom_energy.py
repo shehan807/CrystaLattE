@@ -1,20 +1,22 @@
 import crystalatte
 from crystalatte.plugins import force_fields
+import os
+
+
+file_dir = os.path.dirname(os.path.realpath(__file__)) + "/"
 
 
 def main():
     e = force_fields.openmm_inputs_polarization_energy(
-        pdb_file="/home/amwalla3/gits/U_pol/benchmarks/OpenMM/imidazole/imidazole.pdb",
-        xml_file="/home/amwalla3/gits/U_pol/benchmarks/OpenMM/imidazole/imidazole.xml",
-        residue_file="/home/amwalla3/gits/U_pol/benchmarks/OpenMM/imidazole/imidazole_residue.xml",
+        pdb_file=f"{file_dir}imidazole.pdb",
+        xml_file=f"{file_dir}imidazole.xml",
+        residue_file=f"{file_dir}imidazole_residue.xml",
     )
     print(e)
-    
-
-    return
+    # return
     _, _, output_data = crystalatte.main(
-        cif_input="../Tests/Ammonia/Ammonia.cif",
-        cif_output="./ammonia.xyz",
+        cif_input=file_dir + "./imidazole.cif",
+        cif_output=file_dir + "./imidazole.xyz",
         cif_a=3,
         cif_b=3,
         cif_c=3,
@@ -32,8 +34,11 @@ def main():
         bsse_type=None,
         job_memory=None,
         verbose=2,
-        custom_function=force_fields.example_energy_function,
-        example_extra_arg=0.05,
+        # custom_function=force_fields.example_energy_function,
+        custom_function=force_fields.polarization_energy_function,
+        pdb_file=f"{file_dir}imidazole.pdb",
+        xml_file=f"{file_dir}imidazole.xml",
+        residue_file=f"{file_dir}imidazole_residue.xml",
     )
     try:
         import pandas as pd
