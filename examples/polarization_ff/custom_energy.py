@@ -14,6 +14,18 @@ def main():
     )
     print(e)
     # return
+    # atom_types needs to be shape (N_atoms, N_molecules, 1)
+    monomer_atom_types_in_order_of_xyz = [
+        "N00",
+        "N0",
+        "H2",
+        "H21",
+        "H1",
+        "H0",
+        "C2",
+        "C21",
+        "C1",
+    ]
     _, _, output_data = crystalatte.main(
         cif_input=file_dir + "./imidazole.cif",
         cif_output=file_dir + "./imidazole.xyz",
@@ -39,14 +51,15 @@ def main():
         pdb_file=f"{file_dir}imidazole.pdb",
         xml_file=f"{file_dir}imidazole.xml",
         residue_file=f"{file_dir}imidazole_residue.xml",
-        atom_types=[]
+        atom_types=monomer_atom_types_in_order_of_xyz,
     )
     try:
         import pandas as pd
+
         df = pd.DataFrame(output_data)
         print(df)
         df.to_csv("./ammonia_results.csv", index=False)
-    except (ImportError):
+    except ImportError:
         print("Pandas not installed, printing dictionary")
         print(output_data)
     return

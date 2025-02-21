@@ -203,8 +203,16 @@ def openmm_inputs_polarization_energy(
     Uind_openmm = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
     return Uind_openmm
 
-def qcel_mol_to_openmm_inputs(qcel_mol):
-    return
+
+def polarization_energy(R_core, Z_core, atom_types):
+    # TODO: assign atom_types here, form R=r_core (NxM_{molecule}x3), r_shell starts as all heavy
+    # atoms from R, NxM_{molecules}x3, positions zero for hydrogens
+    print('\npolarization energy:')
+    print(R_core.shape)
+    print(R_core)
+    print(Z_core)
+    print(atom_types)
+    return -0.0105
 
 
 
@@ -237,47 +245,52 @@ def polarization_energy_function(
     """
     pdb_file = kwargs.get("pdb_file", None)
     xml_file = kwargs.get("xml_file", None)
+    atom_types = kwargs.get("atom_types", None)
     residue_file = kwargs.get("residue_file", None)
-    atom_types = []
-    if pdb_file is None or xml_file is None or residue_file is None:
-        raise ValueError("pdb_file, xml_file, and residue_file must be specified")
     print(qcel_mol)
     n_body_energy = -0.0105 
     # update xyz coordinates with qcel_mol.geometry
+    atom_types_monomer = [[atom_types]]
+    atom_types_dimer = [[atom_types], [atom_types]]
+    atom_types_trimer = [[atom_types], [atom_types], [atom_types]]
+
+    atomic_numbers_monomer = [qcel_mol.get_fragment(0).atomic_numbers]
+    atomic_numbers_dimer = [atomic_numbers_monomer, atomic_numbers_monomer]
+    atomic_numbers_trimer = [atomic_numbers_monomer, atomic_numbers_monomer, atomic_numbers_monomer]
+
 
     if len(nmer["monomers"]) == 3:
         # Trimers: ΔE(3)ijk = Eijk − (ΔEij + ΔEik + ΔEjk) − (Ei + Ej + Ek)
         m1, m2, m3 = qcel_mol.get_fragment(0), qcel_mol.get_fragment(1), qcel_mol.get_fragment(2)
-        RA1, RA2, RA3 = m1.geometry, m2.geometry, m3.geometry
-        ZA1, ZA2, ZA3 = m1.atomic_numbers, m2.atomic_numbers, m3.atomic_numbers
-        print(RA1, RA2, RA3)
-        print(ZA1, ZA2, ZA3)
-        Ei = m1.nuclear_repulsion_energy()
-        Ej = m2.nuclear_repulsion_energy()
-        Ek = m3.nuclear_repulsion_energy()
-        Eij = qcel_mol.get_fragment([0, 1]).nuclear_repulsion_energy() - Ei - Ej
-        Eik = qcel_mol.get_fragment([0, 2]).nuclear_repulsion_energy() - Ei - Ek
-        Ejk = qcel_mol.get_fragment([1, 2]).nuclear_repulsion_energy() - Ej - Ek
-        Eijk = qcel_mol.nuclear_repulsion_energy()
-        # need non-additive many body energy
-        # and 1-body energies, run polarization energy function, and subtract, ie
-        # polarization_energy = openmm_inputs_polarization_energy(
-        #     pdb_file=pdb_file,
-        #     xml_file=xml_file,
-        #     residue_file=residue_file,
-        # )
-        # nmer["nambe"] = polarization_energy
-        nmer['nambe'] = Eijk - (Eij + Eik + Ejk) - (Ei + Ej + Ek)
+        v = np.reshape(m3.geometry, (-1, 1, 3))
+        r1 = np.reshape(m1.geometry, (-1, 1, 3))
+        r2 = np.reshape(m2.geometry, (-1, 1, 3))
+        r3 = np.reshape(m3.geometry, (-1, 1, 3))
+        Ei = polarization_energy(r1, atomic_numbers_monomer, atom_types_monomer)
+        Ej = polarization_energy(r1, atomic_numbers_monomer, atom_types_monomer)
+        Ek = polarization_energy(r1, atomic_numbers_monomer, atom_types_monomer)
+        Eij = polarization_energy(np.hstack((r1, r2)),  atomic_numbers_dimer, atom_types_dimer) - Ei - Ej
+        Eik = polarization_energy(np.hstack((r1, r3)),  atomic_numbers_dimer, atom_types_dimer) - Ei - Ek
+        Ejk = polarization_energy(np.hstack((r2, r3)),  atomic_numbers_dimer, atom_types_dimer) - Ej - Ek
+        Eijk = polarization_energy(np.hstack((r1, r2, r3)), atomic_numbers_trimer, atom_types_trimer) - (Eij + Eik + Ejk) - (Ei + Ej + Ek)
+        nmer['nambe'] = Eijk
     elif len(nmer["monomers"]) == 2:
-        # Dimers: ΔE(2)ij = Eij − Ei − Ej
         m1, m2 = qcel_mol.get_fragment(0), qcel_mol.get_fragment(1)
-        Ei = m1.nuclear_repulsion_energy()
-        Ej = m2.nuclear_repulsion_energy()
-        print(qcel_mol.get_fragment(0).atomic_numbers)
-        print(qcel_mol.get_fragment([0, 1]).atomic_numbers)
-        Eij = qcel_mol.get_fragment([0, 1]).nuclear_repulsion_energy()
-        RA1, RA2 = m1.geometry, m2.geometry
-        ZA1, ZA2 = m1.atomic_numbers, m2.atomic_numbers
+        r1 = np.reshape(m1.geometry, (-1, 1, 3))
+        r2 = np.reshape(m2.geometry, (-1, 1, 3))
+        Ei = polarization_energy(np.reshape(r1, (-1, 1, 3)), atomic_numbers_monomer, atom_types_monomer)
+        Ej = polarization_energy(np.reshape(r2, (-1, 1, 3)), atomic_numbers_monomer, atom_types_monomer)
+        Eij = polarization_energy(np.hstack((r1, r2)), atomic_numbers_dimer, atom_types_dimer) - Ei - Ej
+        nmer['nambe'] = Eij
+        # Dimers: ΔE(2)ij = Eij − Ei − Ej
+        # m1, m2 = qcel_mol.get_fragment(0), qcel_mol.get_fragment(1)
+        # Ei = m1.nuclear_repulsion_energy()
+        # Ej = m2.nuclear_repulsion_energy()
+        # print(qcel_mol.get_fragment(0).atomic_numbers)
+        # print(qcel_mol.get_fragment([0, 1]).atomic_numbers)
+        # Eij = qcel_mol.get_fragment([0, 1]).nuclear_repulsion_energy()
+        # RA1, RA2 = m1.geometry, m2.geometry
+        # ZA1, ZA2 = m1.atomic_numbers, m2.atomic_numbers
         # polarization_energy = openmm_inputs_polarization_energy(
         #     pdb_file=pdb_file,
         #     xml_file=xml_file,
