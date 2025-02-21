@@ -203,6 +203,11 @@ def openmm_inputs_polarization_energy(
     Uind_openmm = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
     return Uind_openmm
 
+def qcel_mol_to_openmm_inputs(qcel_mol):
+    return
+
+
+
 def polarization_energy_function(
     qcel_mol: qcel.models.Molecule,
     cif_output: str,
@@ -237,10 +242,7 @@ def polarization_energy_function(
         raise ValueError("pdb_file, xml_file, and residue_file must be specified")
     print(qcel_mol)
     n_body_energy = -0.0105 
-    with open(pdb_file, "r") as f:
-        pdb = f.readlines()
     # update xyz coordinates with qcel_mol.geometry
-
 
     if len(nmer["monomers"]) == 3:
         m1, m2, m3 = qcel_mol.get_fragment(0), qcel_mol.get_fragment(1), qcel_mol.get_fragment(2)
@@ -248,29 +250,40 @@ def polarization_energy_function(
         ZA1, ZA2, ZA3 = m1.atomic_numbers, m2.atomic_numbers, m3.atomic_numbers
         print(RA1, RA2, RA3)
         print(ZA1, ZA2, ZA3)
+        Ei = m1.nuclear_repulsion_energy()
+        Ej = m2.nuclear_repulsion_energy()
+        Ek = m3.nuclear_repulsion_energy()
+        Eij = qcel_mol.get_fragment([0, 1]).nuclear_repulsion_energy()
+        Eik = qcel_mol.get_fragment([0, 2]).nuclear_repulsion_energy()
+        Ejk = qcel_mol.get_fragment([1, 2]).nuclear_repulsion_energy()
+        Eijk = qcel_mol.nuclear_repulsion_energy()
         # need non-additive many body energy
         # and 1-body energies, run polarization energy function, and subtract, ie
         # Trimers: ΔE(3)ijk = Eijk − (ΔEij + ΔEik + ΔEjk) − (Ei + Ej + Ek)
-        polarization_energy = openmm_inputs_polarization_energy(
-            pdb_file=pdb_file,
-            xml_file=xml_file,
-            residue_file=residue_file,
-        )
-        nmer["nambe"] = polarization_energy
+        # polarization_energy = openmm_inputs_polarization_energy(
+        #     pdb_file=pdb_file,
+        #     xml_file=xml_file,
+        #     residue_file=residue_file,
+        # )
+        # nmer["nambe"] = polarization_energy
+        nmer['nambe'] = Eijk - (Eij + Eik + Ejk) - (Ei + Ej + Ek)
     elif len(nmer["monomers"]) == 2:
         # Dimers: ΔE(2)ij = Eij − Ei − Ej
         m1, m2 = qcel_mol.get_fragment(0), qcel_mol.get_fragment(1)
+        Ei = m1.nuclear_repulsion_energy()
+        Ej = m2.nuclear_repulsion_energy()
+        print(qcel_mol.get_fragment(0).atomic_numbers)
+        print(qcel_mol.get_fragment([0, 1]).atomic_numbers)
+        Eij = qcel_mol.get_fragment([0, 1]).nuclear_repulsion_energy()
         RA1, RA2 = m1.geometry, m2.geometry
         ZA1, ZA2 = m1.atomic_numbers, m2.atomic_numbers
-        print(RA1, RA2)
-        print(ZA1, ZA2)
-        polarization_energy = openmm_inputs_polarization_energy(
-            pdb_file=pdb_file,
-            xml_file=xml_file,
-            residue_file=residue_file,
-        )
-        polarization_energy /= 2625.5 # convert from kJ/mol to Hartree
-        nmer["nambe"] = polarization_energy
+        # polarization_energy = openmm_inputs_polarization_energy(
+        #     pdb_file=pdb_file,
+        #     xml_file=xml_file,
+        #     residue_file=residue_file,
+        # )
+        # polarization_energy /= 2625.5 # convert from kJ/mol to Hartree
+        # nmer["nambe"] = polarization_energy
     else:
         raise ValueError("N-mer size not supported")
     return
