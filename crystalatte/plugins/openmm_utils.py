@@ -54,7 +54,7 @@ def get_inputs(scf="openmm", pdb_file=None, xml_file=None, residue_file=None):
 
     if openmm:
         # use openMM to obtain bond definitions and atom/Drude positions
-        Topology().loadBondDefinitions(residue_file)
+        # Topology().loadBondDefinitions(residue_file)
         integrator = DrudeSCFIntegrator(0.00001 * picoseconds)
         integrator.setMinimizationErrorTolerance(0.0001)
         integrator.setRandomNumberSeed(123)

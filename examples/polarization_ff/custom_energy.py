@@ -39,6 +39,7 @@ def main():
         pdb_file=f"{file_dir}imidazole.pdb",
         xml_file=f"{file_dir}imidazole.xml",
         residue_file=f"{file_dir}imidazole_residue.xml",
+        atom_types=[]
     )
     try:
         import pandas as pd
