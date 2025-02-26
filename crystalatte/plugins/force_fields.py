@@ -16,30 +16,30 @@ sys.path.append(".")
 
 ONE_4PI_EPS0 = openmm_utils.ONE_4PI_EPS0
 
-#@jit
+@jit
 def make_Sij(Rij, u_scale):
     """Build Thole screening function for intra-molecular dipole-dipole interactions."""
     Rij_norm = safe_norm(Rij, 0.0, axis=-1)
     return 1.0 - (1.0 + 0.5 * Rij_norm * u_scale) * jnp.exp(-u_scale * Rij_norm)
 
-#@jit
+@jit
 def jnp_denominator_norm(X):
     """Enable nan-friendly gradients & divide by zero"""
     X_norm = safe_norm(X, 0.0, axis=-1)
     return jnp.where(X_norm == 0.0, jnp.inf, X_norm)
 
-#@jit
+@jit
 def safe_sum(X):
     """Enable safe sum for jnp matrices with infty."""
     return jnp.where(jnp.isfinite(X), X, 0).sum()
 
-#@jit
+@jit
 def Uself(Dij, k):
     """Calculates self energy, 1/2 Σ k_i * ||d_mag_i||^2."""
     d_mag = safe_norm(Dij, 0.0, axis=2)
     return 0.5 * jnp.sum(k * d_mag**2)
 
-#@jit
+@jit
 def Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core):
     """Compute static Coulomb energy, i.e., Q = Q_core + Q_Drude.""" 
     Rij_norm = jnp_denominator_norm(Rij)           
@@ -52,7 +52,7 @@ def Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core):
 
     return ONE_4PI_EPS0 * U_coul_static
 
-#@jit
+@jit
 def Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale):
     """Compute total inter- and intra-molecular Coulomb energy.""" 
     
@@ -100,7 +100,7 @@ def Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale):
 
     return ONE_4PI_EPS0 * U_coul_total
 
-#@jit
+@jit
 def Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k):
     """
     Calculate total induction energy with decomposition,
@@ -143,7 +143,7 @@ def Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k):
     return U_ind
 
 
-#@jit
+@jit
 def drudeOpt(
     Rij,
     Dij0,
