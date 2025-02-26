@@ -17,6 +17,23 @@ sys.path.append(".")
 ONE_4PI_EPS0 = openmm_utils.ONE_4PI_EPS0
 
 #@jit
+def make_Sij(Rij, u_scale):
+    """Build Thole screening function for intra-molecular dipole-dipole interactions."""
+    Rij_norm = safe_norm(Rij, 0.0, axis=-1)
+    return 1.0 - (1.0 + 0.5 * Rij_norm * u_scale) * jnp.exp(-u_scale * Rij_norm)
+
+#@jit
+def jnp_denominator_norm(X):
+    """Enable nan-friendly gradients & divide by zero"""
+    X_norm = safe_norm(X, 0.0, axis=-1)
+    return jnp.where(X_norm == 0.0, jnp.inf, X_norm)
+
+#@jit
+def safe_sum(X):
+    """Enable safe sum for jnp matrices with infty."""
+    return jnp.where(jnp.isfinite(X), X, 0).sum()
+
+#@jit
 def Uself(Dij, k):
     """Calculates self energy, 1/2 Σ k_i * ||d_mag_i||^2."""
     d_mag = safe_norm(Dij, 0.0, axis=2)
