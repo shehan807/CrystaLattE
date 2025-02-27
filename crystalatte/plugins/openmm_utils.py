@@ -2,6 +2,7 @@ import os
 import jax.numpy as jnp
 from optax import safe_norm
 import time
+import qcelemental as qcel
 import numpy as np
 from openmm.app import (
     Simulation,
@@ -36,47 +37,67 @@ def get_Dij(r_core, r_shell):
     d = jnp.where(shell_mask[..., jnp.newaxis], d, 0.0)
     return d
 
-def get_Rij_Dij(simmd):
-    """Obtain Rij matrix (core-core displacements) and Dij (core-shell) displaments.
+def get_Rij_Dij(simmd=None,qcel_mol=None,atom_types=None):
+    """Obtain Rij matrix (core-core displacements) and Dij (core-shell) displaments."""
 
-    TODO: Rij/Dij can be obtained directly from qcel w/o OpenMM dependency.
-    """
+    if simmd is not None:
+        system = simmd.system
+        topology = simmd.topology
+        positions = simmd.context.getState(getPositions=True).getPositions()
 
-    system = simmd.system
-    topology = simmd.topology
-    positions = simmd.context.getState(getPositions=True).getPositions()
+        drude = [f for f in system.getForces() if isinstance(f, DrudeForce)][0]
+        numDrudes = drude.getNumParticles()
+        drude_indices = [drude.getParticleParameters(i)[0] for i in range(numDrudes)]
 
-    drude = [f for f in system.getForces() if isinstance(f, DrudeForce)][0]
-    numDrudes = drude.getNumParticles()
-    drude_indices = [drude.getParticleParameters(i)[0] for i in range(numDrudes)]
+        r_core = []
+        for i, res in enumerate(topology.residues()):
+            residue_core_pos = []
+            for atom in res.atoms():
+                # skip over drude particles
+                if atom.index in drude_indices:
+                    continue
+                pos = list(positions[atom.index])
+                pos = [p.value_in_unit(nanometer) for p in pos]
+                # update positions for residue
+                residue_core_pos.append(pos)
+            r_core.append(residue_core_pos)
 
-    r_core = []
-    for i, res in enumerate(topology.residues()):
-        residue_core_pos = []
-        for atom in res.atoms():
-            # skip over drude particles
-            if atom.index in drude_indices:
-                continue
-            pos = list(positions[atom.index])
-            pos = [p.value_in_unit(nanometer) for p in pos]
-            # update positions for residue
-            residue_core_pos.append(pos)
+        # conveniently, r_core = r_shell (i.e., initialize Dij to zero)
+        r_core = jnp.array(r_core)
+        r_shell = jnp.array(r_core)
 
-        r_core.append(residue_core_pos)
+        # broadcast r_core (nmols, natoms, 3) --> Rij (nmols, nmols, natoms, natoms, 3)
+        Rij = (
+            r_core[jnp.newaxis, :, jnp.newaxis, :, :]
+            - r_core[:, jnp.newaxis, :, jnp.newaxis, :]
+        )
+        Dij = get_Dij(r_core, r_shell)
 
-    # conveniently, r_core = r_shell (i.e., initialize Dij to zero)
-    r_core = jnp.array(r_core)
-    r_shell = jnp.array(r_core)
+        return Rij, Dij
+    elif (simmd is None) and ((qcel_mol is not None) and (atom_types is not None)):
+        nmols = len(qcel_mol.fragments)
+        m = []
+        for i in range(nmols):
+            mi = qcel_mol.get_fragment(i)
+            # NOTE: This is not a rigorous test! For now, users manually must 
+            # ensure pdb/xml files align with atom type order 
+            atom_type_symbols = [s[0] for s in atom_types]
+            if not (atom_type_symbols == mi.symbols).all():
+                raise Exception("Atom types and qcel molecule symbols must align!")
+            
+            print(mi.geometry)
+            m.append(qcel.constants.conversion_factor("bohr", "nanometer")*mi.geometry)
 
-    # broadcast r_core (nmols, natoms, 3) --> Rij (nmols, nmols, natoms, natoms, 3)
-    Rij = (
-        r_core[jnp.newaxis, :, jnp.newaxis, :, :]
-        - r_core[:, jnp.newaxis, :, jnp.newaxis, :]
-    )
-    Dij = get_Dij(r_core, r_shell)
+        r_core = jnp.stack(m)
+        r_shell = jnp.array(r_core)
 
-    return Rij, Dij
-
+        # broadcast r_core (nmols, natoms, 3) --> Rij (nmols, nmols, natoms, natoms, 3)
+        Rij = (
+            r_core[jnp.newaxis, :, jnp.newaxis, :, :]
+            - r_core[:, jnp.newaxis, :, jnp.newaxis, :]
+        )
+        Dij = get_Dij(r_core, r_shell)
+        return Rij, Dij
 
 def get_QiQj(simmd):
     """Obtain core and shell charges.
@@ -349,4 +370,3 @@ def U_ind_omm(simmd):
     # total Nonbonded + Drude (self) energy
     U_tot_omm = state.getPotentialEnergy()
     return (U_tot_omm - U_static_omm).value_in_unit(kilojoules_per_mole)
-    #return (U_tot_omm).value_in_unit(kilojoules_per_mole)

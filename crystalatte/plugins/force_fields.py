@@ -1,7 +1,8 @@
 from . import openmm_utils
 from optax import safe_norm
-from jaxopt import BFGS
+from jaxopt import BFGS, NonlinearCG
 import jax.numpy as jnp
+import jax
 from jax import jit
 import numpy as np
 import qcelemental as qcel
@@ -153,7 +154,6 @@ def drudeOpt(
     Qj_core,
     u_scale,
     k,
-    methods=["BFGS"],
     d_ref=None,
 ):
     """
@@ -165,18 +165,16 @@ def drudeOpt(
         Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k
     )
 
-    for method in methods:
-        start = time.time()
-        solver = BFGS(fun=Uind_min, tol=0.0001, verbose=False)
-        res = solver.run(init_params=Dij0)
-        end = time.time()
-        logger.info(f"JAXOPT.BFGS Time: {end-start:.3f} seconds.")
-        d_opt = res.params 
-        try:
-            if d_ref.any():
-                diff = jnp.linalg.norm(d_ref - d_opt)
-        except AttributeError:
-            pass
+    start = time.time()
+    solver = BFGS(fun=Uind_min, tol=0.0001)
+    res = solver.run(init_params=Dij0)
+    end = time.time()
+    d_opt = res.params 
+    try:
+        if d_ref.any():
+            diff = jnp.linalg.norm(d_ref - d_opt)
+    except AttributeError:
+        pass
     return d_opt
 
 
@@ -185,6 +183,7 @@ def openmm_inputs_polarization_energy(
     xml_file,
     residue_file,
 ):
+    jax.config.update("jax_enable_x64", True)
     simmd = openmm_utils.setup_openmm(
                 pdb_file=pdb_file,
                 ff_file=xml_file,
@@ -193,10 +192,21 @@ def openmm_inputs_polarization_energy(
     
     Uind_openmm = openmm_utils.U_ind_omm(simmd)
 
-    Rij, Dij = openmm_utils.get_Rij_Dij(simmd)
+    Rij, Dij = openmm_utils.get_Rij_Dij(simmd=simmd)
     Qi_core, Qi_shell, Qj_core, Qj_shell = openmm_utils.get_QiQj(simmd)
     k, u_scale = openmm_utils.get_pol_params(simmd)
-    
+    Dij = drudeOpt(
+        Rij,
+        jnp.ravel(Dij),
+        Qi_shell,
+        Qj_shell,
+        Qi_core,
+        Qj_core,
+        u_scale,
+        k,
+    )
+    U_ind = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
+    print(f"U_ind (OpenMM): {Uind_openmm}\nU_ind (JAX): {U_ind}") 
     return Uind_openmm
 
 
@@ -210,7 +220,46 @@ def polarization_energy(R_core, Z_core, atom_types):
     print(atom_types)
     return -0.0105
 
+def polarization_energy_sample(qcel_mol, **kwargs):
+    """
+    Sample version of 'polarization_energy()' function to be generalized 
+    for polarization_energy_function(). Is currently functional for 
+    only dimers, although generalization should be easy. 
+    """
+    
+    jax.config.update("jax_enable_x64", True)
+    ### These lines should live in polarization_energy_function later on ### 
+    pdb_file = kwargs.get("pdb_file", None)
+    xml_file = kwargs.get("xml_file", None)
+    atom_types = kwargs.get("atom_types", None)
+    residue_file = kwargs.get("residue_file", None)
+   
+    simmd = openmm_utils.setup_openmm(
+                pdb_file=pdb_file,
+                ff_file=xml_file,
+                residue_file=residue_file,
+    )
+    
+    Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types=atom_types)
+    
+    # get_QiQj() and get_pol_params() can, in principle, depend solely on the xml_file 
+    Qi_core, Qi_shell, Qj_core, Qj_shell = openmm_utils.get_QiQj(simmd) 
+    k, u_scale = openmm_utils.get_pol_params(simmd)
+    ### These lines should live in polarization_energy_function later on ### 
+    
+    Dij = drudeOpt(
+        Rij,
+        jnp.ravel(Dij),
+        Qi_shell,
+        Qj_shell,
+        Qi_core,
+        Qj_core,
+        u_scale,
+        k,
+    )
+    U_ind = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
 
+    return U_ind
 
 def polarization_energy_function(
     qcel_mol: qcel.models.Molecule,
