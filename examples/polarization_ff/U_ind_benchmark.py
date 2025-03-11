@@ -8,7 +8,7 @@ file_dir = os.path.dirname(os.path.realpath(__file__)) + "/"
 
 
 def main():
-    molecules = ["imidazole"] # ["imidazole","pyrazole", "pyrazine","acetic_acid"]
+    molecules = ["acetic_acid"] # ["imidazole","pyrazole", "pyrazine","acetic_acid"]
     
     for molecule in molecules:
 
