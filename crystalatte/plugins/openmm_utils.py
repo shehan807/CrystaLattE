@@ -4,6 +4,8 @@ from optax import safe_norm
 import time
 import qcelemental as qcel
 import numpy as np
+import pandas as pd
+
 from openmm.app import (
     Simulation,
     Topology,
@@ -37,7 +39,7 @@ def get_Dij(r_core, r_shell):
     d = jnp.where(shell_mask[..., jnp.newaxis], d, 0.0)
     return d
 
-def get_Rij_Dij(simmd=None,qcel_mol=None,atom_types=None):
+def get_Rij_Dij(simmd=None,qcel_mol=None,atom_types_map=None):
     """Obtain Rij matrix (core-core displacements) and Dij (core-shell) displaments."""
 
     if simmd is not None:
@@ -74,20 +76,32 @@ def get_Rij_Dij(simmd=None,qcel_mol=None,atom_types=None):
         Dij = get_Dij(r_core, r_shell)
 
         return Rij, Dij
-    elif (simmd is None) and ((qcel_mol is not None) and (atom_types is not None)):
+    elif (simmd is None) and ((qcel_mol is not None) and (atom_types_map is not None)):
         nmols = len(qcel_mol.fragments)
-        m = []
+        m = [] 
         for i in range(nmols):
             mi = qcel_mol.get_fragment(i)
-            # NOTE: This is not a rigorous test! For now, users manually must 
-            # ensure pdb/xml files align with atom type order 
-            atom_type_symbols = [s[0] for s in atom_types]
-            if not (atom_type_symbols == mi.symbols).all():
-                raise Exception("Atom types and qcel molecule symbols must align!")
             
-            print(mi.geometry)
-            m.append(qcel.constants.conversion_factor("bohr", "nanometer")*mi.geometry)
+            # atom_types_map ensure 1-to-1 mappings to SAPT "labels"
+            atom_types = pd.read_csv(atom_types_map, names=["From", "To"])
+            target_types = [f"{s}{i}" for i,s in enumerate(mi.symbols)]
 
+            # NOTE: there should be a better way to determine qcel position units
+            geometry = np.array(mi.geometry)*qcel.constants.conversion_factor("bohr", "nanometer")
+            geometry_mapped = np.zeros_like(geometry)
+            #print(atom_types["From"].values)
+            #print(atom_types["To"].values)
+            for idx, _type in enumerate(target_types):
+                #print(_type)
+                #print(atom_types[atom_types["To"] == _type].index)
+                idx_mapped = atom_types[atom_types["To"] == _type].index[0]
+                geometry_mapped[idx_mapped] = geometry[idx]
+            
+            m.append(geometry_mapped)
+            #print(target_types)
+            #print(mi.geometry*qcel.constants.conversion_factor("bohr", "nanometer"))
+            #print(atom_types["From"].values)
+            #print(geometry_mapped)
         r_core = jnp.stack(m)
         r_shell = jnp.array(r_core)
 
@@ -130,6 +144,7 @@ def get_QiQj(simmd):
         res_charge = []
         res_shell_charge = []
         for atom in res.atoms():
+            #print(atom.index, atom.name)
             # skip over drude particles
             if atom.index in drude_indices:
                 continue
