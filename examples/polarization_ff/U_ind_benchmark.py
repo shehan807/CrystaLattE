@@ -1,5 +1,5 @@
 import crystalatte
-from crystalatte.plugins import force_fields
+from crystalatte.plugins import openmm_utils, force_fields
 import os
 import pandas as pd
 
@@ -43,14 +43,25 @@ def main():
                     xml_file=ff_file,
                     residue_file=residue_file,
                     atom_types_map=atom_types_map,
+                    update_pdb=True,
             )
+            
+            simmd = openmm_utils.setup_openmm(
+                pdb_file="tmp.pdb",
+                ff_file=ff_file,
+                residue_file=residue_file,
+            )
+
+            Uind_omm = openmm_utils.U_ind_omm(simmd)
+
             results.append({
                 "distance": distance,
                 "nmer_name": Nmer_name,
                 "Uind_md": Uind_md,
-                "Uind_sapt": Uind_sapt
+                "Uind_sapt": Uind_sapt,
+                "Uind_omm":Uind_omm,
             })
-            print(f"(Uind_sapt, Uind_md, distance) = ({Uind_sapt},{Uind_md},{distance})")
+            print(f"(Uind_sapt, Uind_md, Uind_omm, distance) = ({Uind_sapt},{Uind_md},{Uind_omm},{distance})")
             #break
         results_df = pd.DataFrame(results)
         results_df.to_csv(output_csv, index=False)

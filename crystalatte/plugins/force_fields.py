@@ -240,8 +240,12 @@ def polarization_energy_sample(qcel_mol, **kwargs):
                 residue_file=residue_file,
     )
     
-    Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
-    
+    if kwargs.get("update_pdb") is not None and kwargs.get("update_pdb"):
+        Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map, pdb_template=pdb_file)
+    else:
+        Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
+
+            
     # get_QiQj() and get_pol_params() can, in principle, depend solely on the xml_file 
     Qi_core, Qi_shell, Qj_core, Qj_shell = openmm_utils.get_QiQj(simmd) 
     k, u_scale = openmm_utils.get_pol_params(simmd)
@@ -258,7 +262,7 @@ def polarization_energy_sample(qcel_mol, **kwargs):
         k,
     )
     U_ind = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
-
+    
     return U_ind
 
 def polarization_energy_function(

@@ -6,6 +6,7 @@ import qcelemental as qcel
 import numpy as np
 import pandas as pd
 
+from openmm.vec3 import Vec3
 from openmm.app import (
     Simulation,
     Topology,
@@ -39,7 +40,7 @@ def get_Dij(r_core, r_shell):
     d = jnp.where(shell_mask[..., jnp.newaxis], d, 0.0)
     return d
 
-def get_Rij_Dij(simmd=None,qcel_mol=None,atom_types_map=None):
+def get_Rij_Dij(simmd=None,qcel_mol=None,atom_types_map=None, **kwargs):
     """Obtain Rij matrix (core-core displacements) and Dij (core-shell) displaments."""
 
     if simmd is not None:
@@ -103,6 +104,10 @@ def get_Rij_Dij(simmd=None,qcel_mol=None,atom_types_map=None):
             #print(atom_types["From"].values)
             #print(geometry_mapped)
         r_core = jnp.stack(m)
+        if kwargs.get("pdb_template") is not None:
+            pdb_template = kwargs.get("pdb_template")
+            r_core_to_pdb(r_core, pdb_template=pdb_template)
+
         r_shell = jnp.array(r_core)
 
         # broadcast r_core (nmols, natoms, 3) --> Rij (nmols, nmols, natoms, natoms, 3)
@@ -112,6 +117,31 @@ def get_Rij_Dij(simmd=None,qcel_mol=None,atom_types_map=None):
         )
         Dij = get_Dij(r_core, r_shell)
         return Rij, Dij
+
+def r_core_to_pdb(r_core, pdb_template, pdb_file="tmp.pdb"):
+    """Create updated PDB file with r_core from residue file as template."""
+
+    pdb = PDBFile(pdb_template)
+
+    # reshape r_core to match total number of atoms
+    coords = np.array(r_core).reshape((-1, 3))
+
+    # create list of Vec3 positions (default to nm)
+    if coords.shape[0] != len(pdb.positions):
+        raise ValueError(
+            f"Mismatch in atom count: Template has {len(pdb.positions)} atoms "
+            f"but r_core has {coords.shape[0]} coords."
+        )
+    new_positions = [Vec3(*xyz) for xyz in coords] * nanometer
+
+    # write the updated PDB
+    print(pdb.positions)
+    print(new_positions)
+    pdb.positions = new_positions
+    with open(pdb_file, "w") as f:
+        PDBFile.writeFile(pdb.topology, pdb.positions, f)
+    
+    print(f"Created {pdb_file}!") 
 
 def get_QiQj(simmd):
     """Obtain core and shell charges.
