@@ -135,8 +135,6 @@ def r_core_to_pdb(r_core, pdb_template, pdb_file="tmp.pdb"):
     new_positions = [Vec3(*xyz) for xyz in coords] * nanometer
 
     # write the updated PDB
-    print(pdb.positions)
-    print(new_positions)
     pdb.positions = new_positions
     with open(pdb_file, "w") as f:
         PDBFile.writeFile(pdb.topology, pdb.positions, f)

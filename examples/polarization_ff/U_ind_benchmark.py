@@ -8,7 +8,11 @@ file_dir = os.path.dirname(os.path.realpath(__file__)) + "/"
 
 
 def main():
-    molecules = ["acetic_acid"] # ["imidazole","pyrazole", "pyrazine","acetic_acid"]
+    if os.environ["MOLECULES_LIST"] is not None:
+        molecules = os.environ["MOLECULES_LIST"].split(",")
+        print(molecules)
+    else:
+        molecules = ["pyrazine", "pyrazole"] # ["imidazole","pyrazole", "pyrazine","acetic_acid"]
     
     for molecule in molecules:
 

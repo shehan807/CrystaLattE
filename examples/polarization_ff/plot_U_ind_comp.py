@@ -21,6 +21,8 @@ def plot_induction_parity(
     chemical_accuracy_kj=1.0,
     fontsize=18,
     distance_cutoff=None,
+    verification=False,
+    omm=False,
 ):
     """
     Reads a CSV with columns:
@@ -49,15 +51,21 @@ def plot_induction_parity(
     if distance_cutoff is not None:
         df = df[df["distance"] > distance_cutoff]
     # Extract columns
-    x_sapt = df["Uind_sapt"].values  # (kJ/mol)
-    y_md = df["Uind_md"].values      # (kJ/mol)
+    if verification:
+        x_ref = df["Uind_omm"].values  # (kJ/mol)
+    else:
+        x_ref = df["Uind_sapt"].values  # (kJ/mol)
+    if omm:
+        y_md = df["Uind_omm"].values      # (kJ/mol)
+    else:
+        y_md = df["Uind_md"].values      # (kJ/mol)
     color_distance = df["distance"].values
 
     # 2) Compute errors
-    errors = y_md - x_sapt
+    errors = y_md - x_ref
     mae = np.mean(np.abs(errors))
     rmse = np.sqrt(np.mean(errors**2))
-    r2 = np.corrcoef(x_sapt, y_md)[0, 1] ** 2
+    r2 = np.corrcoef(x_ref, y_md)[0, 1] ** 2
     max_error = np.max(np.abs(errors))
 
     # 3) Setup plot style
@@ -96,22 +104,28 @@ def plot_induction_parity(
     )
 
     # 4) Axis labels & title
-    ax.set_xlabel("SAPT Induction (kJ/mol)", fontsize=fontsize)
-    ax.set_ylabel("MD Induction (kJ/mol)", fontsize=fontsize)
+    if verification:
+        ax.set_xlabel("OpenMM Induction (kJ/mol)", fontsize=fontsize)
+    else:
+        ax.set_xlabel("SAPT Induction (kJ/mol)", fontsize=fontsize)
+    if omm:
+        ax.set_ylabel("OpenMM Induction (kJ/mol)", fontsize=fontsize)
+    else:
+        ax.set_ylabel("MD Induction (kJ/mol)", fontsize=fontsize)
     ax.set_title(title, fontsize=fontsize)
 
     # 5) Plot scatter, color by distance
     sc = ax.scatter(
-        x_sapt, y_md, c=color_distance, cmap="viridis", alpha=0.8, s=40, edgecolors="none"
+        x_ref, y_md, c=color_distance, cmap="viridis", alpha=0.8, s=40, edgecolors="none"
     )
-    print(x_sapt, y_md, color_distance)
+    # print(x_ref, y_md, color_distance)
     # colorbar labeled "Distance (A)"
     cbar = plt.colorbar(sc, ax=ax, pad=0.01)
     cbar.set_label("Distance (Å)", fontsize=fontsize * 0.9)
 
     # 6) Diagonal y = x
-    min_val = min(x_sapt.min(), y_md.min())
-    max_val = max(x_sapt.max(), y_md.max())
+    min_val = min(x_ref.min(), y_md.min())
+    max_val = max(x_ref.max(), y_md.max())
     line_vals = np.linspace(min_val, max_val, 200)
     ax.plot(line_vals, line_vals, "k--", lw=2, alpha=0.7)
 
@@ -153,7 +167,7 @@ def plot_induction_parity(
     # 8) Inset: error histogram
     left, bottom, width, height = 0.45, 0.15, 0.3, 0.2
     ax_inset = fig.add_axes([left, bottom, width, height])
-    ax_inset.hist(errors, bins='auto', color="steelblue", alpha=0.7, edgecolor="k")
+    ax_inset.hist(errors, bins=40, color="steelblue", alpha=0.7, edgecolor="k")
     ax_inset.set_title("Error Distribution (MD - SAPT)", fontsize=fontsize * 0.7)
     ax_inset.tick_params(axis="both", which="major", labelsize=fontsize * 0.6)
     # Center range around zero
@@ -198,6 +212,14 @@ def main():
         "--distance_cutoff", type=float, default=None,
         help="Only plot values at distances higher than this cutoff."
     )
+    parser.add_argument(
+        "-v", "--verification", action="store_true", default=False,
+        help="Enable verification mode (default: False)."
+    ) 
+    parser.add_argument(
+        "-omm", "--openmm", action="store_true", default=False,
+        help="Set y_md to OpenMM Uind mode (default: False)."
+    ) 
     args = parser.parse_args()
 
     plot_induction_parity(
@@ -207,6 +229,8 @@ def main():
         chemical_accuracy_kj=args.chemical_accuracy_kj,
         fontsize=args.fontsize,
         distance_cutoff=args.distance_cutoff,
+        verification=args.verification,
+        omm=args.openmm,
     )
 
 
