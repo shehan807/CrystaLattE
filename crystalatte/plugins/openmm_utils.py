@@ -363,7 +363,6 @@ def setup_openmm(
     integrator.setMinimizationErrorTolerance(error_tol)
     if integrator_seed is not None:
         integrator.setRandomNumberSeed(integrator_seed)
-
     pdb = PDBFile(pdb_file)
     modeller = Modeller(pdb.topology, pdb.positions)
     forcefield = ForceField(ff_file)

@@ -8,11 +8,11 @@ file_dir = os.path.dirname(os.path.realpath(__file__)) + "/"
 
 
 def main():
-    if os.environ["MOLECULES_LIST"] is not None:
+    if "MOLECULES_LIST" in os.environ:
         molecules = os.environ["MOLECULES_LIST"].split(",")
         print(molecules)
     else:
-        molecules = ["pyrazine", "pyrazole"] # ["imidazole","pyrazole", "pyrazine","acetic_acid"]
+        molecules = ["pyrazole"] # ["imidazole","pyrazole", "pyrazine","acetic_acid"]
     
     for molecule in molecules:
 
@@ -54,6 +54,8 @@ def main():
                 pdb_file="tmp.pdb",
                 ff_file=ff_file,
                 residue_file=residue_file,
+                error_tol=1e-16,
+                platform_name="CUDA",
             )
 
             Uind_omm = openmm_utils.U_ind_omm(simmd)

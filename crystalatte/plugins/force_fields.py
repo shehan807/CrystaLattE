@@ -166,7 +166,7 @@ def drudeOpt(
     )
 
     start = time.time()
-    solver = BFGS(fun=Uind_min, tol=0.0001)
+    solver = BFGS(fun=Uind_min, tol=1e-16)
     res = solver.run(init_params=Dij0)
     end = time.time()
     d_opt = res.params 
