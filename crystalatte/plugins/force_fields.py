@@ -21,10 +21,6 @@ ONE_4PI_EPS0 = openmm_utils.ONE_4PI_EPS0
 def make_Sij(Rij, u_scale):
     """Build Thole screening function for intra-molecular dipole-dipole interactions."""
     Rij_norm = safe_norm(Rij, 0.0, axis=-1)
-    print(Rij_norm)
-    print(Rij_norm.shape)
-    print(u_scale)
-    print(u_scale.shape)
     return 1.0 - (1.0 + 0.5 * Rij_norm * u_scale) * jnp.exp(-u_scale * Rij_norm)
 
 @jit
@@ -237,7 +233,10 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     xml_file = kwargs.get("xml_file", None)
     atom_types_map = kwargs.get("atom_types_map", None)
     residue_file = kwargs.get("residue_file", None)
-   
+    
+    # update pdb_file with correct qcel_mol "topology" 
+    pdb_file = openmm_utils._create_topology(qcel_mol, pdb_file, atom_types_map)
+
     simmd = openmm_utils.setup_openmm(
                 pdb_file=pdb_file,
                 ff_file=xml_file,

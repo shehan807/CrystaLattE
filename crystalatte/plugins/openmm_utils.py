@@ -6,6 +6,8 @@ import qcelemental as qcel
 from qcelemental import constants
 import numpy as np
 import pandas as pd
+from pathlib import Path
+from MDAnalysis import Universe 
 
 from openmm.vec3 import Vec3
 from openmm.app import (
@@ -34,7 +36,26 @@ AVOGADRO = 6.02214076e23
 EPSILON0 = 1e-6 * 8.8541878128e-12 / (E_CHARGE * E_CHARGE * AVOGADRO)
 ONE_4PI_EPS0 = 1 / (4 * M_PI * EPSILON0)
 
-def _molecule_to_pdb_file(molecule, filename: str, res_name: str, atom_types: str | None) -> None:
+def _create_topology(qcel_mol, old_pdb_path, atom_types_map):
+    """Create new topology based on QCElemental "topology"."""
+    
+    import warnings
+    # suppress some MDAnalysis warnings about PDB files
+    warnings.filterwarnings('ignore')
+
+    resnames = set(Universe(old_pdb_path).atoms.resnames)
+    # NOTE: All resiudes MUST be the same in the provided PDB topology 
+    residue_name = resnames.pop() if len(resnames) == 1 else None
+    
+    old_pdb_path = Path(old_pdb_path)
+    tmp_pdb = old_pdb_path.with_name(old_pdb_path.stem + "_tmp" + old_pdb_path.suffix)
+    
+    _molecule_to_pdb_file(qcel_mol, tmp_pdb, residue_name, atom_types_map) 
+    _add_CONECT(tmp_pdb)
+
+    return str(tmp_pdb)
+
+def _molecule_to_pdb_file(molecule, filename: str, res_name: str, atom_types_map: str | None) -> None:
     """Writes a QCElemental Molecule to a PDB file, handling multiple fragments and adding CONECT records if connectivity information is provided."""
     coords = molecule.geometry * constants.bohr2angstroms
     symbols = molecule.symbols
@@ -46,8 +67,8 @@ def _molecule_to_pdb_file(molecule, filename: str, res_name: str, atom_types: st
     for res_seq, fragment in enumerate(fragments, start=1):
         residue_name = res_name
         chain_id = ' '
-        if atom_types:
-            type_map = pd.read_csv(atom_types, names=["From", "To"]).set_index("To")
+        if atom_types_map:
+            type_map = pd.read_csv(atom_types_map, names=["From", "To"]).set_index("To")
              
         for i, atom in enumerate(fragment):
             symbol = symbols[atom]
