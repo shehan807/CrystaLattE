@@ -1,7 +1,6 @@
 from crystalatte.plugins import force_fields
 import qcelemental as qcel
 import os
-import numpy as np
 
 mol = qcel.models.Molecule.from_data(
     """
@@ -43,8 +42,8 @@ units bohr
 print(mol)
 print(mol.geometry)
 monA = mol.get_fragment(0)
-#print(monA)
-#print(monA.geometry)
+print(monA)
+print(monA.geometry)
 file_dir = os.path.dirname(os.path.realpath(__file__)) + "/" + "imidazole/"
 monomer = force_fields.polarization_energy_sample(
     mol.get_fragment(0),
@@ -54,19 +53,19 @@ monomer = force_fields.polarization_energy_sample(
     atom_types_map=f"{file_dir}imidazole_map.csv",
 )
 print(monomer)
-dimer = force_fields.polarization_energy_sample(
-    mol.get_fragment([0, 1]),
-    pdb_file=f"{file_dir}imidazole.pdb",
-    xml_file=f"{file_dir}imidazole.xml",
-    residue_file=f"{file_dir}imidazole_residue.xml",
-    atom_types_map=f"{file_dir}imidazole_map.csv",
-)
-print(dimer)
-trimer = force_fields.polarization_energy_sample(
-    mol,
-    pdb_file=f"{file_dir}imidazole.pdb",
-    xml_file=f"{file_dir}imidazole.xml",
-    residue_file=f"{file_dir}imidazole_residue.xml",
-    atom_types_map=f"{file_dir}imidazole_map.csv",
-)
-print(trimer)
+#dimer = force_fields.polarization_energy_sample(
+#    mol.get_fragment([0, 1]),
+#    pdb_file=f"{file_dir}imidazole.pdb",
+#    xml_file=f"{file_dir}imidazole.xml",
+#    residue_file=f"{file_dir}imidazole_residue.xml",
+#    atom_types_map=f"{file_dir}imidazole_map.csv",
+#)
+#print(dimer)
+#trimer = force_fields.polarization_energy_sample(
+#    mol,
+#    pdb_file=f"{file_dir}imidazole.pdb",
+#    xml_file=f"{file_dir}imidazole.xml",
+#    residue_file=f"{file_dir}imidazole_residue.xml",
+#    atom_types_map=f"{file_dir}imidazole_map.csv",
+#)
+#print(trimer)

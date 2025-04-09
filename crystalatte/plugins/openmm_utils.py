@@ -98,8 +98,15 @@ def _molecule_to_pdb_file(molecule, filename: str, res_name: str, atom_types_map
 def _add_CONECT(pdb_filename: str) -> None:
     """Adds CONECT records to an existing PDB file using MDAnalysis's default bond guesser."""
     from MDAnalysis import Universe
-    Universe(pdb_filename, format='PDB', guess_bonds=True).atoms.write(pdb_filename)
+    u = Universe(pdb_filename, format='PDB', guess_bonds=True)
+    conect_lines = set()
+    
+    for bond in u.bonds:
+        idx1, idx2 = sorted(bond.indices + 1)  # PDB atom numbering starts at 1
+        conect_lines.add(f"CONECT{idx1:5d}{idx2:5d}")
 
+    with open(pdb_filename, "a") as pdb:
+        pdb.write('\n' + '\n'.join(sorted(conect_lines)) + '\n')
 
 def get_Dij(r_core, r_shell):
     """Calculate displacement between core and shell particles."""
