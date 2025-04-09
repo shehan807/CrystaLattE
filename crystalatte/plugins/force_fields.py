@@ -21,6 +21,10 @@ ONE_4PI_EPS0 = openmm_utils.ONE_4PI_EPS0
 def make_Sij(Rij, u_scale):
     """Build Thole screening function for intra-molecular dipole-dipole interactions."""
     Rij_norm = safe_norm(Rij, 0.0, axis=-1)
+    print(Rij_norm)
+    print(Rij_norm.shape)
+    print(u_scale)
+    print(u_scale.shape)
     return 1.0 - (1.0 + 0.5 * Rij_norm * u_scale) * jnp.exp(-u_scale * Rij_norm)
 
 @jit
