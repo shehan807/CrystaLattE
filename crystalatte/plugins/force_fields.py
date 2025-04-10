@@ -139,6 +139,8 @@ def Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k):
     U_coul = Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale)
     U_coul_static = Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core)
     U_self = Uself(Dij, k)
+    jax.debug.print("U_coul: {}", U_coul) 
+    jax.debug.print("U_coul_static: {}", U_coul_static) 
     jax.debug.print("U_self: {}", U_self) 
     U_ind = (U_coul - U_coul_static) + U_self
     
@@ -162,6 +164,17 @@ def drudeOpt(
     Uind w.r.t d.
 
     """
+    print(" %%%%% STARTING SCF %%%%%\n")
+    print(Rij)
+    jax.debug.print("Rij: {}", Rij)
+    jax.debug.print("Dij: {}", Dij0)
+    jax.debug.print("Qi_core: {}", Qi_core)
+    jax.debug.print("Qi_shell: {}", Qi_shell)
+    jax.debug.print("Qj_core: {}", Qj_core)
+    jax.debug.print("Qj_shell: {}", Qj_shell)
+    jax.debug.print("k: {}", k)
+    jax.debug.print("u_scale: {}", u_scale)
+    
     Uind_min = lambda Dij: Uind(
         Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k
     )
