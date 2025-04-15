@@ -418,7 +418,7 @@ def setup_openmm(
     timestep=0.00001 * picoseconds,
     error_tol=0.0001,
     integrator_seed=None,
-    platform_name="CPU",
+    platform_name="Reference",
 ):
     """
     Function to create Simulation object from OpenMM.
