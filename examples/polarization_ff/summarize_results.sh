@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # Define the list of molecules and distance cutoffs
-MOLECULES=("pyrazole") # "acetic_acid" "pyrazine" "pyrazole") # You can replace this with ("imidazole" "pyrazole" "pyrazine" "acetic_acid")
+MOLECULES=("imidazole") # "acetic_acid" "pyrazine" "pyrazole") # You can replace this with ("imidazole" "pyrazole" "pyrazine" "acetic_acid")
 DISTANCE_CUTOFFS=(2 10 12)  # Example values, modify as needed
 
 # Export the molecules list as an environment variable
 export MOLECULES_LIST="$(IFS=,; echo "${MOLECULES[*]}")"
 
-module load anaconda3
-conda activate om_p4_jax
+#module load anaconda3
+#conda activate om_p4_jax
 python U_ind_benchmark.py
 echo "Benchmark Python Complete"
 

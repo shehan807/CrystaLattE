@@ -1,4 +1,5 @@
 import os
+import jax
 import jax.numpy as jnp
 from optax import safe_norm
 import time
@@ -23,6 +24,7 @@ from openmm import (
     DrudeSCFIntegrator,
     Platform,
 )
+from openmm.app import NoCutoff
 from openmm.unit import (
     elementary_charge,
     picoseconds,
@@ -115,6 +117,74 @@ def get_Dij(r_core, r_shell):
     d = jnp.where(shell_mask[..., jnp.newaxis], d, 0.0)
     return d
 
+def get_Dij_omm(simmd):
+    system = simmd.system
+    topology = simmd.topology
+    positions = simmd.context.getState(getPositions=True).getPositions()
+
+    # Identify the DrudeForce
+    drude_forces = [f for f in system.getForces() if isinstance(f, DrudeForce)]
+    if len(drude_forces) == 0:
+        raise ValueError("No DrudeForce found in the system.")
+    drude = drude_forces[0]
+
+    # Build a map from parent (core) index --> Drude (shell) index in the System
+    num_drudes = drude.getNumParticles()
+
+    # For convenience, track all Drude indices in a set to help with skipping them later
+    drude_particle_indices = set()
+    parent_to_drude = {}
+
+    for i in range(num_drudes):
+        # According to OpenMM docs, getParticleParameters(i) returns:
+        # (drudeParticleIndex, parentIndex, charge, polarizability, aniso12, aniso13)
+        #dIdx, pIdx, charge, pol, aniso12, aniso13 = drude.getParticleParameters(i)
+        drudeParams = drude.getParticleParameters(i)
+        dIdx = drudeParams[0]
+        pIdx = drudeParams[1]
+        drude_particle_indices.add(dIdx)
+        parent_to_drude[pIdx] = dIdx
+
+    # Now build per-residue arrays for r_core and r_shell.
+    # We'll keep them parallel: the nth entry of each corresponds to the same atom in a residue.
+    r_core_list = []
+    r_shell_list = []
+
+    for res in topology.residues():
+        residue_core_pos = []
+        residue_shell_pos = []
+        for atom in res.atoms():
+            # If this atom is itself a Drude particle, skip it for "core" arrays
+            if atom.index in drude_particle_indices:
+                continue
+
+            # Core (parent) position
+            core_pos = positions[atom.index]
+            core_pos_nm = [p.value_in_unit(nanometer) for p in core_pos]
+
+            # If there's a Drude shell for this parent, retrieve it; otherwise same as core or zero.
+            if atom.index in parent_to_drude:
+                shell_index = parent_to_drude[atom.index]
+                shell_pos = positions[shell_index]
+                shell_pos_nm = [p.value_in_unit(nanometer) for p in shell_pos]
+            else:
+                # No Drude => zero displacement.  You could just use core_pos if you want 
+                # r_shell = r_core for non-Drude atoms, or put zero, etc.
+                shell_pos_nm = core_pos_nm  # or [0.0, 0.0, 0.0] if you want to highlight no Drude
+
+            residue_core_pos.append(core_pos_nm)
+            residue_shell_pos.append(shell_pos_nm)
+
+        r_core_list.append(residue_core_pos)
+        r_shell_list.append(residue_shell_pos)
+
+    # Convert to JAX arrays
+    r_core = jnp.array(r_core_list)
+    r_shell = jnp.array(r_shell_list)
+
+    # Now compute the per-atom Drude displacement: shell - core
+    return get_Dij(r_core, r_shell)
+
 def get_Rij_Dij(simmd=None,qcel_mol=None,atom_types_map=None, **kwargs):
     """Obtain Rij matrix (core-core displacements) and Dij (core-shell) displaments."""
 
@@ -163,7 +233,12 @@ def get_Rij_Dij(simmd=None,qcel_mol=None,atom_types_map=None, **kwargs):
             target_types = [f"{s}{i}" for i,s in enumerate(mi.symbols)]
 
             # NOTE: there should be a better way to determine qcel position units
-            geometry = np.array(mi.geometry)*constants.conversion_factor("bohr", "nanometer")
+            omm_compare = True
+            if omm_compare:
+                geometry = np.array(mi.geometry)*constants.conversion_factor("bohr", "nanometer")
+                geometry = np.round(geometry, 3)
+            else:
+                geometry = np.array(mi.geometry)*constants.conversion_factor("bohr", "nanometer")
             geometry_mapped = np.zeros_like(geometry)
             #print(atom_types["From"].values)
             #print(atom_types["To"].values)
@@ -253,6 +328,7 @@ def get_QiQj(simmd):
                 continue
             charge, sigma, epsilon = nonbonded.getParticleParameters(atom.index)
             charge = charge.value_in_unit(elementary_charge)
+            #print(f"Res {i}, Atom {atom.index}, Q = {charge}")
             # assign drude positions for respective parent atoms
             if atom.index in parent_indices:
                 drude_params = drude.getParticleParameters(
@@ -267,10 +343,13 @@ def get_QiQj(simmd):
             res_charge.append(charge)
         q_core.append(res_charge)
         q_shell.append(res_shell_charge)
-
+    
+    #print(f"q_core, OMM: {q_core}")
+    #print(f"q_shell, OMM: {q_shell}")
     q_core = jnp.array(q_core)
     q_shell = jnp.array(q_shell)
-
+    #jax.debug.print("q_core, JNP: {}", q_core)
+    #jax.debug.print("q_shell, JNP: {}", q_shell)
     # break up core-shell, shell-core, and shell-shell terms
     Qi_shell = q_shell[:, jnp.newaxis, :, jnp.newaxis]
     Qj_shell = q_shell[jnp.newaxis, :, jnp.newaxis, :]
@@ -350,6 +429,7 @@ def get_pol_params(simmd):
 
                         for sp_i in range(numScreenedPairs):
                             screened_params = drude.getScreenedPairParameters(sp_i)
+                            # print(f"Screened Pair {sp_i}: {screened_params}")
                             prt0_params = drude.getParticleParameters(
                                 screened_params[0]
                             )
@@ -418,7 +498,7 @@ def setup_openmm(
     timestep=0.00001 * picoseconds,
     error_tol=0.0001,
     integrator_seed=None,
-    platform_name="CPU",
+    platform_name="Reference",
 ):
     """
     Function to create Simulation object from OpenMM.
@@ -445,7 +525,10 @@ def setup_openmm(
     modeller.addExtraParticles(forcefield)
 
     system = forcefield.createSystem(
-        modeller.topology, constraints=None, rigidWater=True
+        modeller.topology, 
+        constraints=None, 
+        rigidWater=True,
+        nonbondedMethod=NoCutoff,
     )
 
     for i in range(system.getNumForces()):
@@ -457,10 +540,12 @@ def setup_openmm(
     # Add exceptions for ALL intramolecular pairs in a residue
     for residue in modeller.getTopology().residues():
         atom_indices = [atom.index for atom in residue.atoms()]
+        #print(f"atom_indices: {atom_indices}")
         for i in range(len(atom_indices)):
-            for j in range(i + 1, len(atom_indices)):
+            for j in range(i+1, len(atom_indices)):
                 i_global = atom_indices[i]
                 j_global = atom_indices[j]
+                #print(f"Excluding ({i_global},{j_global})...")
                 # Force the Coulomb & LJ to zero for i-j
                 nonbonded.addException(i_global, j_global, 0.0, 1.0, 0.0, True)
 
@@ -476,14 +561,41 @@ def U_ind_omm(simmd):
     state = simmd.context.getState(
         getEnergy=True, getForces=True, getVelocities=True, getPositions=True
     )
-    U_static_omm = state.getPotentialEnergy()
-
+    system = simmd.system
+    U_static_omm = state.getPotentialEnergy() 
     # optimize Drude positions
-    simmd.step(1)
+    print('before DrudeSCFIntegrator')
+    for j in range(system.getNumForces()):
+        f = system.getForce(j)
+        PE = str(type(f)) + str(simmd.context.getState(getEnergy=True, groups=2**j).getPotentialEnergy())
+        print(PE)
+    
+    Dij_0   = get_Dij_omm(simmd)
+    #simmd.step(1)
+    Dij_f   = get_Dij_omm(simmd)
     state = simmd.context.getState(
         getEnergy=True, getForces=True, getVelocities=True, getPositions=True
     )
+    
+    ### DEBUGGING DRUDE POSITIONS ###
+    #Rij, Dij = get_Rij_Dij(simmd=simmd)
+    #jax.debug.print("OpenMM Dij_0={}",Dij_0)
+    #jax.debug.print("OpenMM Dij_f={}",Dij_f)
+    ### DEBUGGING DRUDE POSITIONS ###
 
     # total Nonbonded + Drude (self) energy
     U_tot_omm = state.getPotentialEnergy()
-    return (U_tot_omm - U_static_omm).value_in_unit(kilojoules_per_mole)
+    print('after DrudeSCFIntegrator')
+    for j in range(system.getNumForces()):
+        f = system.getForce(j)
+        PE = str(type(f)) + str(simmd.context.getState(getEnergy=True, groups=2**j).getPotentialEnergy())
+        if 'NonbondedForce' in PE:
+            _NonbondedForce = simmd.context.getState(getEnergy=True, groups=2**j).getPotentialEnergy()
+        if 'DrudeForce' in PE:
+            _DrudeForce = simmd.context.getState(getEnergy=True, groups=2**j).getPotentialEnergy()
+
+        print(PE)
+    print(f"NonbondedForce Variable: {_NonbondedForce}")
+    return _NonbondedForce.value_in_unit(kilojoules_per_mole) #(U_tot_omm - U_static_omm).value_in_unit(kilojoules_per_mole)
+    #return (U_tot_omm - U_static_omm).value_in_unit(kilojoules_per_mole)
+    #return DrudeForce.value_in_unit(kilojoules_per_mole)

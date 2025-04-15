@@ -15,7 +15,7 @@ import sys
 sys.path.append(".")
 
 
-ONE_4PI_EPS0 = openmm_utils.ONE_4PI_EPS0
+ONE_4PI_EPS0 = 138.935456 #openmm_utils.ONE_4PI_EPS0
 
 @jit
 def make_Sij(Rij, u_scale):
@@ -35,28 +35,73 @@ def safe_sum(X):
     return jnp.where(jnp.isfinite(X), X, 0).sum()
 
 @jit
-def Uself(Dij, k):
+def Uself(Dij, k, Rij=None):
     """Calculates self energy, 1/2 Σ k_i * ||d_mag_i||^2."""
+    if Rij is not None:
+        (nmol, _, natoms, _, pos) = Rij.shape
+        if Dij.shape != (nmol, natoms, pos):
+            Dij = jnp.reshape(Dij, (nmol, natoms, pos))
     d_mag = safe_norm(Dij, 0.0, axis=2)
-    jax.debug.print("d_mag: {}", d_mag)
     return 0.5 * jnp.sum(k * d_mag**2)
 
 @jit
 def Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core):
     """Compute static Coulomb energy, i.e., Q = Q_core + Q_Drude.""" 
+    #jax.debug.print("Rij+{}",Rij)
+    #jax.debug.print("Rij={}",Rij)
+    #jax.debug.print("safe_norm(X, 0.0, axis=-1)={}",safe_norm(Rij, 0.0, axis=-1))
+
     Rij_norm = jnp_denominator_norm(Rij)           
+    #jax.debug.print("Qi_core + Qi_shell={}",Qi_core + Qi_shell)
+    #jax.debug.print("Qj_core + Qj_shell={}",Qj_core + Qj_shell)
+    #jax.debug.print("Rij_norm: {}", Rij_norm)
+
+    term1 = (Qi_core) * (Qj_core) / Rij_norm
+    term2 = (Qi_core) * (Qj_shell) / Rij_norm
+    term3 = (Qi_shell) * (Qj_core) / Rij_norm
+    term4 = (Qi_shell) * (Qj_shell) / Rij_norm
     U_coul_static = (Qi_core + Qi_shell) * (Qj_core + Qj_shell) / Rij_norm
+    #jax.debug.print("U_coul_static(before I)={}",U_coul_static)
 
     # remove intramolecular contributions
     I = jnp.eye(U_coul_static.shape[0])
     U_coul_static = U_coul_static * (1 - I[:, :, jnp.newaxis, jnp.newaxis])
+    #jax.debug.print("U_coul_static matrix: {}",U_coul_static)
+    term1 = term1 * (1 - I[:, :, jnp.newaxis, jnp.newaxis])
+    term2 = term2 * (1 - I[:, :, jnp.newaxis, jnp.newaxis])
+    term3 = term3 * (1 - I[:, :, jnp.newaxis, jnp.newaxis])
+    term4 = term4 * (1 - I[:, :, jnp.newaxis, jnp.newaxis])
+    #jax.debug.print("U_coul_static={}",U_coul_static)
     U_coul_static = 0.5 * safe_sum(U_coul_static)
+     
+    term1 = ONE_4PI_EPS0 * 0.5 * term1.sum()  
+    term2 = ONE_4PI_EPS0 * 0.5 * term2.sum()
+    term3 = ONE_4PI_EPS0 * 0.5 * term3.sum()
+    term4 = ONE_4PI_EPS0 * 0.5 * term4.sum()
+    
+    jax.debug.print("term1: {}", term1)
+    jax.debug.print("term2: {}", term2)
+    jax.debug.print("term3: {}", term3)
+    jax.debug.print("term4: {}", term4)
+    jax.debug.print("sum(terms): {}", term1 + term2 + term3 + term4)
+    jax.debug.print("U_coul_static: {}", ONE_4PI_EPS0 * (U_coul_static))
 
-    return ONE_4PI_EPS0 * U_coul_static
+    #U_coul_intra = (Qi_core + Qi_shell) * (Qj_core + Qj_shell) / Rij_norm
+    #I_intra = jnp.eye(U_coul_intra.shape[0])
+    #I_self = jnp.eye(U_coul_intra.shape[-1])
+    #U_coul_intra = (U_coul_intra * I_intra[:, :, jnp.newaxis, jnp.newaxis]) * (
+    #    1 - I_self[jnp.newaxis, jnp.newaxis, :, :]
+    #)
+    #U_coul_intra = 0.5 * safe_sum(U_coul_intra)
+    return ONE_4PI_EPS0 * (U_coul_static) # + U_coul_intra)
 
 @jit
-def Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale):
+def Ucoul_intra(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale):
     """Compute total inter- and intra-molecular Coulomb energy.""" 
+    if Rij is not None:
+        (nmol, _, natoms, _, pos) = Rij.shape
+        if Dij.shape != (nmol, natoms, pos):
+            Dij = jnp.reshape(Dij, (nmol, natoms, pos))
     
     # build denominator rij terms i
     Di = Dij[:, jnp.newaxis, :, jnp.newaxis, :]
@@ -91,14 +136,91 @@ def Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale):
           + Sij_Dj    * -Qi_shell *  Qj_shell / Rij_Dj_norm
           + Sij_Di_Dj *  Qi_shell *  Qj_shell / Rij_Di_Dj_norm
     )
+    #U_shell_intra = (
+    #    # shell_i (Drude) at r_i + d_i  vs. core_j at r_j
+    #    Sij_Di * (Qi_shell) * (Qj_core) / Rij_Di_norm
+    #    +
+    #    # core_i at r_i vs. shell_j (Drude) at r_j + d_j
+    #    Sij_Dj * (Qi_core)  * (Qj_shell) / Rij_Dj_norm
+    #)
+    #U_coul_intra += U_shell_intra
+    ###jax.debug.print("U_coul_intra = {}",U_coul_intra) 
+    ###jax.debug.print("U_shell_intra = {}",U_shell_intra) 
+    #jax.debug.print("Sij = {}", Sij)
+    #jax.debug.print("U_coul_intra = {}", U_coul_intra)
     # keep diagonal (intramolecular) components except for self-terms
     I_intra = jnp.eye(U_coul_intra.shape[0])
     I_self = jnp.eye(U_coul_intra.shape[-1])
     U_coul_intra = (U_coul_intra * I_intra[:, :, jnp.newaxis, jnp.newaxis]) * (
         1 - I_self[jnp.newaxis, jnp.newaxis, :, :]
     )
-    jax.debug.print("U_coul_intr: {}", U_coul_intra)
-    U_coul_total = 0.5 * safe_sum(U_coul_inter + U_coul_intra)
+    #jax.debug.print("{}",U_coul_intra)
+    U_coul_intra_total = 0.5 * safe_sum(U_coul_intra)
+    
+    return ONE_4PI_EPS0 * U_coul_intra_total
+
+@jit
+def Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale):
+    """Compute total inter- and intra-molecular Coulomb energy.""" 
+    if Rij is not None:
+        (nmol, _, natoms, _, pos) = Rij.shape
+        if Dij.shape != (nmol, natoms, pos):
+            Dij = jnp.reshape(Dij, (nmol, natoms, pos))
+    
+    # build denominator rij terms i
+    Di = Dij[:, jnp.newaxis, :, jnp.newaxis, :]
+    Dj = Dij[jnp.newaxis, :, jnp.newaxis, :, :]
+    Rij_norm       = jnp_denominator_norm(Rij)           
+    Rij_Di_norm    = jnp_denominator_norm(Rij + Di)      
+    Rij_Dj_norm    = jnp_denominator_norm(Rij - Dj)      
+    Rij_Di_Dj_norm = jnp_denominator_norm(Rij + Di - Dj) 
+
+    # build Thole screening matrices
+    Sij       = make_Sij(Rij, u_scale)       
+    Sij_Di    = make_Sij(Rij + Di, u_scale)    
+    Sij_Dj    = make_Sij(Rij - Dj, u_scale)    
+    Sij_Di_Dj = make_Sij(Rij + Di - Dj, u_scale) 
+
+    # compute intermolecular Coulomb matrix
+    #Tij = 1 / (Rij_norm + Rij_Di_norm + Rij_Dj_norm + Rij_Di_Dj_norm)
+    U_coul_inter = (
+            Qi_core  * Qj_core  / Rij_norm
+          + Qi_shell * Qj_core  / Rij_Di_norm
+          + Qi_core  * Qj_shell / Rij_Dj_norm
+          + Qi_shell * Qj_shell / Rij_Di_Dj_norm
+    )
+    
+    #jax.debug.print("Qi_core: {}",Qi_core)
+    #jax.debug.print("Qj_core: {}",Qj_core)
+    #jax.debug.print("Qi_shell: {}",Qi_shell)
+    #jax.debug.print("Qj_shell: {}",Qj_shell)
+    #
+    #jax.debug.print("Qi_core  * Qj_core : {}",Qi_core * Qj_core)
+    #jax.debug.print("Qi_shell * Qj_core : {}",Qi_shell* Qj_core)
+    #jax.debug.print("Qi_core  * Qj_shell: {}",Qi_core * Qj_shell)
+    #jax.debug.print("Qi_shell * Qj_shell: {}",Qi_shell* Qj_shell)
+    
+    # remove diagonal (intramolecular) components
+    # NOTE: ignores ALL nonbonded interactions for bonded atoms (i.e., 1-5, 1-6, etc.)
+    I = jnp.eye(U_coul_inter.shape[0])
+    U_coul_inter = U_coul_inter * (1 - I[:, :, jnp.newaxis, jnp.newaxis])
+
+    # compute intramolecular Coulomb matrix (of screened dipole-dipole pairs)
+    U_coul_intra = (
+            Sij       * -Qi_shell * -Qj_shell / Rij_norm
+          + Sij_Di    *  Qi_shell * -Qj_shell / Rij_Di_norm
+          + Sij_Dj    * -Qi_shell *  Qj_shell / Rij_Dj_norm
+          + Sij_Di_Dj *  Qi_shell *  Qj_shell / Rij_Di_Dj_norm
+    )
+    #jax.debug.print("Sij = {}", Sij)
+    #jax.debug.print("U_coul_intra = {}", U_coul_intra)
+    # keep diagonal (intramolecular) components except for self-terms
+    I_intra = jnp.eye(U_coul_intra.shape[0])
+    I_self = jnp.eye(U_coul_intra.shape[-1])
+    U_coul_intra = (U_coul_intra * I_intra[:, :, jnp.newaxis, jnp.newaxis]) * (
+        1 - I_self[jnp.newaxis, jnp.newaxis, :, :]
+    )
+    U_coul_total = 0.5 * safe_sum(U_coul_inter) # + U_coul_intra)
     
     return ONE_4PI_EPS0 * U_coul_total
 
@@ -139,11 +261,7 @@ def Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k):
     U_coul = Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale)
     U_coul_static = Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core)
     U_self = Uself(Dij, k)
-    jax.debug.print("U_coul: {}", U_coul) 
-    jax.debug.print("U_coul_static: {}", U_coul_static) 
-    jax.debug.print("U_self: {}", U_self) 
     U_ind = (U_coul - U_coul_static) + U_self
-    
     return U_ind
 
 
@@ -164,20 +282,14 @@ def drudeOpt(
     Uind w.r.t d.
 
     """
-    print(" %%%%% STARTING SCF %%%%%\n")
-    print(Rij)
-    jax.debug.print("Rij: {}", Rij)
-    jax.debug.print("Dij: {}", Dij0)
-    jax.debug.print("Qi_core: {}", Qi_core)
-    jax.debug.print("Qi_shell: {}", Qi_shell)
-    jax.debug.print("Qj_core: {}", Qj_core)
-    jax.debug.print("Qj_shell: {}", Qj_shell)
-    jax.debug.print("k: {}", k)
-    jax.debug.print("u_scale: {}", u_scale)
-    
+    #def Uself(Dij, k):
+    #    """Calculates self energy, 1/2 Σ k_i * ||d_mag_i||^2."""
+    #    d_mag = safe_norm(Dij, 0.0, axis=2)
+    #    return 0.5 * jnp.sum(k * d_mag**2)
     Uind_min = lambda Dij: Uind(
         Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k
     )
+    #Uself_min = lambda Dij: Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale) + Uself(Dij, k, Rij)
 
     start = time.time()
     solver = BFGS(fun=Uind_min, tol=1e-16)
@@ -256,42 +368,56 @@ def polarization_energy_sample(qcel_mol, **kwargs):
                 ff_file=xml_file,
                 residue_file=residue_file,
     )
-    
+    U_ind_OMM = openmm_utils.U_ind_omm(simmd) 
+    Dij_omm   = openmm_utils.get_Dij_omm(simmd)
+    is_all_zero = jnp.all(Dij_omm == 0.0)
+    if not is_all_zero:
+        print("WARNING!!! All entries are NOT zero:", is_all_zero)
+    #print(f"U_ind_omm={U_ind_OMM}")
+    #jax.debug.print("Dij_omm={}", Dij_omm)
+    #print(f"Dij_omm={Dij_omm}")
     if kwargs.get("update_pdb") is not None and kwargs.get("update_pdb"):
         Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map, pdb_template=pdb_file)
     else:
         Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
 
-    jax.debug.print("Rij: {}", Rij)
-    jax.debug.print("Dij: {}", Dij)
-            
     # get_QiQj() and get_pol_params() can, in principle, depend solely on the xml_file 
     Qi_core, Qi_shell, Qj_core, Qj_shell = openmm_utils.get_QiQj(simmd) 
-    jax.debug.print("Qi_core: {}", Qi_core)
-    jax.debug.print("Qi_shell: {}", Qi_shell)
-    jax.debug.print("Qj_core: {}", Qj_core)
-    jax.debug.print("Qj_shell: {}", Qj_shell)
     k, u_scale = openmm_utils.get_pol_params(simmd)
-    jax.debug.print("k: {}", k)
-    jax.debug.print("u_scale: {}", u_scale)
 
     ### These lines should live in polarization_energy_function later on ### 
     
-    Dij = drudeOpt(
-        Rij,
-        jnp.ravel(Dij),
-        Qi_shell,
-        Qj_shell,
-        Qi_core,
-        Qj_core,
-        u_scale,
-        k,
-    )
-    print("finished SCF for Dij")
-    jax.debug.print("Dij: {}", Dij)
+    #Dij = drudeOpt(
+    #    Rij,
+    #    jnp.ravel(Dij),
+    #    Qi_shell,
+    #    Qj_shell,
+    #    Qi_core,
+    #    Qj_core,
+    #    u_scale,
+    #    k,
+    #)
+    #jax.debug.print("JAX MD Dij = {}",Dij)
     U_ind = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
+    U_ind_omm_Dij = Uind(Rij, Dij_omm, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
     
-    return U_ind
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%') 
+    U_coul        = Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale)
+    U_coul_static = Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core)
+    U_coul_intra  = Ucoul_intra(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale)
+    U_self        = Uself(Dij, k, Rij)
+    #jax.debug.print("U_coul={}\nU_coul_static={}\nU_self={}",U_coul,U_coul_static,U_self)
+    #jax.debug.print("DrudeForce: U_coul_intra + U_self={}",U_coul_intra + U_self)
+    #jax.debug.print("NonbondedForce: U_coul - U_coul_intra={}",U_coul - U_coul_intra)
+    #jax.debug.print("NonbondedForce 2: U_coul + U_coul_intra={}",U_coul + U_coul_intra)
+    #print(f"U_ind_omm={U_ind_OMM}")
+    #print(f"U_ind_jax={U_ind}")
+    #print(f"U_ind_jax (w/ OMM Dij) ={U_ind_omm_Dij}")
+     
+    return U_coul_static #- U_coul_intra #U_ind_omm_Dij
+    #return U_coul #- U_coul_intra #U_ind_omm_Dij
+    #return U_ind_omm_Dij
+    #return U_coul_intra + U_self
 
 def polarization_energy_function(
     qcel_mol: qcel.models.Molecule,

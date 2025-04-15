@@ -12,7 +12,7 @@ def main():
         molecules = os.environ["MOLECULES_LIST"].split(",")
         print(molecules)
     else:
-        molecules = ["pyrazole"] # ["imidazole","pyrazole", "pyrazine","acetic_acid"]
+        molecules = ["imidazole"] # ["imidazole","pyrazole", "pyrazine","acetic_acid"]
     
     for molecule in molecules:
 
@@ -34,13 +34,16 @@ def main():
         # print(f"openmm_inputs_polarization_energy works!")
 
         df = pd.read_pickle(pkl_file)
+        #last_index = df.index[-1]
+        #df = df.iloc[[last_index]]
         results = []
         for index, row in df.iterrows():
             qcel_mol = row["mol"]
             distance = row["Minimum Monomer Separations (A)"] 
             Uind_sapt = row["SAPT0 Induction (kJ/mol)"]
             Nmer_name = row["N-mer Name"]
-            
+            qcel_mol.to_file("qcel_mol.xyz", dtype="xyz")
+            print(qcel_mol.geometry)
             Uind_md = force_fields.polarization_energy_sample(
                     qcel_mol, 
                     pdb_file=pdb_file,
@@ -55,7 +58,7 @@ def main():
                 ff_file=ff_file,
                 residue_file=residue_file,
                 error_tol=1e-16,
-                platform_name="CUDA",
+                platform_name="Reference",
             )
 
             Uind_omm = openmm_utils.U_ind_omm(simmd)
@@ -68,6 +71,7 @@ def main():
                 "Uind_omm":Uind_omm,
             })
             print(f"(Uind_sapt, Uind_md, Uind_omm, distance) = ({Uind_sapt},{Uind_md},{Uind_omm},{distance})")
+            print(f"(U_coul_static(OMM) - U_coul_static(JAX))={Uind_omm-Uind_md}")
             #break
         results_df = pd.DataFrame(results)
         results_df.to_csv(output_csv, index=False)
