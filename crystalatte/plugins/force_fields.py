@@ -47,9 +47,6 @@ def Uself(Dij, k, Rij=None):
 @jit
 def Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core):
     """Compute static Coulomb energy, i.e., Q = Q_core + Q_Drude.""" 
-    #jax.debug.print("Rij+{}",Rij)
-    #jax.debug.print("Rij={}",Rij)
-    #jax.debug.print("safe_norm(X, 0.0, axis=-1)={}",safe_norm(Rij, 0.0, axis=-1))
 
     Rij_norm = jnp_denominator_norm(Rij)           
     #jax.debug.print("Qi_core + Qi_shell={}",Qi_core + Qi_shell)
