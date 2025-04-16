@@ -41,15 +41,18 @@ def main():
             Uind_sapt = row["SAPT0 Induction (kJ/mol)"]
             Nmer_name = row["N-mer Name"]
             
-            Uind_md = force_fields.polarization_energy_sample(
+            Uind_md, Udf, Unb = force_fields.polarization_energy_sample(
                     qcel_mol, 
                     pdb_file=pdb_file,
                     xml_file=ff_file,
                     residue_file=residue_file,
                     atom_types_map=atom_types_map,
                     update_pdb=True,
+                    omm_decomp=True
             )
             
+            print(Uind_md, Udf, Unb) 
+
             simmd = openmm_utils.setup_openmm(
                 pdb_file="tmp.pdb",
                 ff_file=ff_file,
@@ -58,14 +61,19 @@ def main():
                 platform_name="CUDA",
             )
 
-            Uind_omm = openmm_utils.U_ind_omm(simmd)
-
+            Uind_omm, Udf_omm, Unb_omm = openmm_utils.U_ind_omm(simmd, decomp=True)
+            
+            print(Uind_omm, Udf_omm, Unb_omm)
             results.append({
                 "distance": distance,
                 "nmer_name": Nmer_name,
                 "Uind_md": Uind_md,
+                "Udf": Udf,
+                "Unb": Unb,
                 "Uind_sapt": Uind_sapt,
                 "Uind_omm":Uind_omm,
+                "Udf_omm":Udf_omm,
+                "Unb_omm":Unb_omm,
             })
             print(f"(Uind_sapt, Uind_md, Uind_omm, distance) = ({Uind_sapt},{Uind_md},{Uind_omm},{distance})")
             #break

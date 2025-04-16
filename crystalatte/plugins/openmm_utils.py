@@ -108,6 +108,74 @@ def _add_CONECT(pdb_filename: str) -> None:
     with open(pdb_filename, "a") as pdb:
         pdb.write('\n' + '\n'.join(sorted(conect_lines)) + '\n')
 
+def get_Dij_omm(simmd):
+    system = simmd.system
+    topology = simmd.topology
+    positions = simmd.context.getState(getPositions=True).getPositions()
+
+    # Identify the DrudeForce
+    drude_forces = [f for f in system.getForces() if isinstance(f, DrudeForce)]
+    if len(drude_forces) == 0:
+        raise ValueError("No DrudeForce found in the system.")
+    drude = drude_forces[0]
+
+    # Build a map from parent (core) index --> Drude (shell) index in the System
+    num_drudes = drude.getNumParticles()
+
+    # For convenience, track all Drude indices in a set to help with skipping them later
+    drude_particle_indices = set()
+    parent_to_drude = {}
+
+    for i in range(num_drudes):
+        # According to OpenMM docs, getParticleParameters(i) returns:
+        # (drudeParticleIndex, parentIndex, charge, polarizability, aniso12, aniso13)
+        #dIdx, pIdx, charge, pol, aniso12, aniso13 = drude.getParticleParameters(i)
+        drudeParams = drude.getParticleParameters(i)
+        dIdx = drudeParams[0]
+        pIdx = drudeParams[1]
+        drude_particle_indices.add(dIdx)
+        parent_to_drude[pIdx] = dIdx
+
+    # Now build per-residue arrays for r_core and r_shell.
+    # We'll keep them parallel: the nth entry of each corresponds to the same atom in a residue.
+    r_core_list = []
+    r_shell_list = []
+
+    for res in topology.residues():
+        residue_core_pos = []
+        residue_shell_pos = []
+        for atom in res.atoms():
+            # If this atom is itself a Drude particle, skip it for "core" arrays
+            if atom.index in drude_particle_indices:
+                continue
+
+            # Core (parent) position
+            core_pos = positions[atom.index]
+            core_pos_nm = [p.value_in_unit(nanometer) for p in core_pos]
+
+            # If there's a Drude shell for this parent, retrieve it; otherwise same as core or zero.
+            if atom.index in parent_to_drude:
+                shell_index = parent_to_drude[atom.index]
+                shell_pos = positions[shell_index]
+                shell_pos_nm = [p.value_in_unit(nanometer) for p in shell_pos]
+            else:
+                # No Drude => zero displacement.  You could just use core_pos if you want 
+                # r_shell = r_core for non-Drude atoms, or put zero, etc.
+                shell_pos_nm = core_pos_nm  # or [0.0, 0.0, 0.0] if you want to highlight no Drude
+
+            residue_core_pos.append(core_pos_nm)
+            residue_shell_pos.append(shell_pos_nm)
+
+        r_core_list.append(residue_core_pos)
+        r_shell_list.append(residue_shell_pos)
+
+    # Convert to JAX arrays
+    r_core = jnp.array(r_core_list)
+    r_shell = jnp.array(r_shell_list)
+
+    # Now compute the per-atom Drude displacement: shell - core
+    return get_Dij(r_core, r_shell)
+
 def get_Dij(r_core, r_shell):
     """Calculate displacement between core and shell particles."""
     shell_mask = safe_norm(r_shell, 0.0, axis=-1) > 0.0
@@ -418,7 +486,7 @@ def setup_openmm(
     timestep=0.00001 * picoseconds,
     error_tol=0.0001,
     integrator_seed=None,
-    platform_name="Reference",
+    platform_name="CPU",
 ):
     """
     Function to create Simulation object from OpenMM.
@@ -471,7 +539,7 @@ def setup_openmm(
     return simmd
 
 
-def U_ind_omm(simmd):
+def U_ind_omm(simmd, decomp=False):
     # total *static* energy (i.e., while Drudes have zero contribution)
     state = simmd.context.getState(
         getEnergy=True, getForces=True, getVelocities=True, getPositions=True
@@ -486,4 +554,18 @@ def U_ind_omm(simmd):
 
     # total Nonbonded + Drude (self) energy
     U_tot_omm = state.getPotentialEnergy()
-    return (U_tot_omm - U_static_omm).value_in_unit(kilojoules_per_mole)
+    Uind_omm = (U_tot_omm - U_static_omm).value_in_unit(kilojoules_per_mole)
+    if decomp:
+        system = simmd.system
+        for j in range(system.getNumForces()):
+            f = system.getForce(j)
+            PE = str(type(f)) + str(simmd.context.getState(getEnergy=True, groups=2**j).getPotentialEnergy())
+            if 'NonbondedForce' in PE:
+                _NonbondedForce = simmd.context.getState(getEnergy=True, groups=2**j).getPotentialEnergy()
+                _NonbondedForce = _NonbondedForce.value_in_unit(kilojoules_per_mole)
+            if 'DrudeForce' in PE:
+                _DrudeForce = simmd.context.getState(getEnergy=True, groups=2**j).getPotentialEnergy()
+                _DrudeForce = _DrudeForce.value_in_unit(kilojoules_per_mole)
+        return Uind_omm, _DrudeForce, _NonbondedForce
+    else:
+        return Uind_omm 

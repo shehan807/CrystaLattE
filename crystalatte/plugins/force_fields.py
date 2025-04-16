@@ -17,15 +17,10 @@ sys.path.append(".")
 
 ONE_4PI_EPS0 = openmm_utils.ONE_4PI_EPS0
 
-@jit
-def make_Sij(Rij, u_scale):
-    """Build Thole screening function for intra-molecular dipole-dipole interactions."""
-    Rij_norm = safe_norm(Rij, 0.0, axis=-1)
-    return 1.0 - (1.0 + 0.5 * Rij_norm * u_scale) * jnp.exp(-u_scale * Rij_norm)
 
 @jit
 def jnp_denominator_norm(X):
-    """Enable nan-friendly gradients & divide by zero"""
+    """Enable nan-friendly gradients & divide by zero."""
     X_norm = safe_norm(X, 0.0, axis=-1)
     return jnp.where(X_norm == 0.0, jnp.inf, X_norm)
 
@@ -35,15 +30,81 @@ def safe_sum(X):
     return jnp.where(jnp.isfinite(X), X, 0).sum()
 
 @jit
+def _DrudeForce(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k):
+    """Direct `DrudeForce` comparison with OpenMM DrudeForce."""
+    (nmol, _, natoms, _, pos) = Rij.shape
+    if Dij.shape != (nmol, natoms, pos):
+        Dij = jnp.reshape(Dij, (nmol, natoms, pos))
+    U_coul_intra = Ucoul_intra(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale)
+    U_self       = Uself(Dij, k)
+    return U_coul_intra + U_self
+
+@jit
+def _NonbondedForce(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale):
+    """Direct `NonbondedForce` comparison with OpenMM DrudeForce."""
+    (nmol, _, natoms, _, pos) = Rij.shape
+    if Dij.shape != (nmol, natoms, pos):
+        Dij = jnp.reshape(Dij, (nmol, natoms, pos))
+    U_coul       = Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale)
+    U_coul_intra = Ucoul_intra(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale)
+    return U_coul - U_coul_intra 
+
+@jit
+def make_Sij(Rij, u_scale):
+    """Build Thole screening function for intra-molecular dipole-dipole interactions.
+
+    The Thole screening function S_ij is given by:
+    
+    S_ij = 1 - (1 + (u_scale * R_ij)/2) * exp(-u_scale * R_ij),
+    
+    where:
+    - R_ij is the distance matrix between sites i and j
+    - u_scale is the screening parameter (units: 1/distance) (See openmm_utils.get_pol_params)
+    
+    u_scale = a / (alpha_i * alpha_j)^(1/6),
+
+    where:
+    - a is the damping constant, i.e. the Thole parameter
+    - alpha_i and alpha_j are the atomic polarizabilities for atoms i and j
+
+    The atomic polarizability is derived from
+
+    alpha = q_Drude^2 / k, 
+    
+    where: 
+    - q_Drude is the Drude oscillator charge 
+    - k is the force constant of the Drude-atom harmonic bond
+    """
+    Rij_norm = safe_norm(Rij, 0.0, axis=-1)
+    return 1.0 - (1.0 + 0.5 * Rij_norm * u_scale) * jnp.exp(-u_scale * Rij_norm)
+
+@jit
 def Uself(Dij, k):
-    """Calculates self energy, 1/2 Σ k_i * ||d_mag_i||^2."""
+    """Calculates self energy due to harmonic potentials of Drude springs.
+    
+    U_self = (1/2) * Σ_i k_i * ||d_i||^2,
+
+    where 
+    - k_i is the force constant
+    - d_i is the displacement of the mobile Drude particle from the position of 
+      the parent atom's nucleus
+    """
     d_mag = safe_norm(Dij, 0.0, axis=2)
-    jax.debug.print("d_mag: {}", d_mag)
     return 0.5 * jnp.sum(k * d_mag**2)
 
 @jit
 def Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core):
-    """Compute static Coulomb energy, i.e., Q = Q_core + Q_Drude.""" 
+    """Compute static Coulomb energy (i.e., q = q_shell + q_core).
+
+    U_coul_static = (1/4πε₀) * (1/2) * ∑∑_{i≠j} Qi * Qj / |R_ij|,
+
+    where:
+    - 1/4πε₀ is the Coulomb constant
+    - Qi, Qj are the static charges, 
+      Qi=(Qi_core + Qi_shell) and Qj=(Qi_core + Qi_shell)
+    - R_ij is the distance matrix between sites i and j
+    """ 
+    
     Rij_norm = jnp_denominator_norm(Rij)           
     U_coul_static = (Qi_core + Qi_shell) * (Qj_core + Qj_shell) / Rij_norm
 
@@ -55,8 +116,91 @@ def Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core):
     return ONE_4PI_EPS0 * U_coul_static
 
 @jit
+def Ucoul_intra(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale):
+    """Compute (damped) Drude-Drude, intra-molecular Coulomb energy.
+
+    Damped, induced dipole-induced dipole interactions are derived from screening
+    Coulomb interactions between specific pairs of dipoles:
+
+    U_coul_intra = (1/4πε₀) * (1/2) * ∑∑_{i≠j} [
+                    Qi_shell * Qj_shell / |R_ij|
+                  + Qi_shell * Qj_shell / |R_ij + D_i|
+                  + Qi_shell * Qj_shell / |R_ij + D_j|
+                  + Qi_shell * Qj_shell / |R_ij + D_i - D_j|
+                  ]
+
+    where:
+    - 1/4πε₀ is the Coulomb constant
+    - Qi_shell, Qj_shell are the Drude charges on shared molecules 
+    - R_ij is the distance matrix between sites i and j
+    - D_i, D_j are the displacements of Drude particles from parent atom nuclei
+    """ 
+    
+    # build denominator rij terms i
+    Di = Dij[:, jnp.newaxis, :, jnp.newaxis, :]
+    Dj = Dij[jnp.newaxis, :, jnp.newaxis, :, :]
+    Rij_norm       = jnp_denominator_norm(Rij)           
+    Rij_Di_norm    = jnp_denominator_norm(Rij + Di)      
+    Rij_Dj_norm    = jnp_denominator_norm(Rij - Dj)      
+    Rij_Di_Dj_norm = jnp_denominator_norm(Rij + Di - Dj) 
+
+    # build Thole screening matrices
+    Sij       = make_Sij(Rij, u_scale)       
+    Sij_Di    = make_Sij(Rij + Di, u_scale)    
+    Sij_Dj    = make_Sij(Rij - Dj, u_scale)    
+    Sij_Di_Dj = make_Sij(Rij + Di - Dj, u_scale) 
+
+    # compute intramolecular Coulomb matrix (of screened dipole-dipole pairs)
+    U_coul_intra = (
+            Sij       *  Qi_shell *  Qj_shell / Rij_norm
+          - Sij_Di    *  Qi_shell *  Qj_shell / Rij_Di_norm
+          - Sij_Dj    *  Qi_shell *  Qj_shell / Rij_Dj_norm
+          + Sij_Di_Dj *  Qi_shell *  Qj_shell / Rij_Di_Dj_norm
+    )
+    # keep diagonal (intramolecular) components except for self-terms
+    I_intra = jnp.eye(U_coul_intra.shape[0])
+    I_self = jnp.eye(U_coul_intra.shape[-1])
+    U_coul_intra = (U_coul_intra * I_intra[:, :, jnp.newaxis, jnp.newaxis]) * (
+        1 - I_self[jnp.newaxis, jnp.newaxis, :, :]
+    )
+    U_coul_intra = 0.5 * safe_sum(U_coul_intra)
+    
+    return ONE_4PI_EPS0 * U_coul_intra
+
+@jit
 def Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale):
-    """Compute total inter- and intra-molecular Coulomb energy.""" 
+    """Compute total Coulomb energy.
+
+    The total Coulomb energy is comprised of (1) U_coul_inter, i.e., all 
+    inter-molecular site-site (Drude or parent) interactions and (2) U_coul_intra, 
+    i.e., all intra-molecular, (screened) Drude-Drude interactions, 
+    
+    U_coul = U_coul_inter + U_coul_intra, 
+
+    where
+
+    U_coul_inter = (1/4πε₀) * (1/2) * ∑∑_{i≠j} [
+                    Qi_core  * Qj_core  / |R_ij|
+                  + Qi_shell * Qj_core  / |R_ij + D_i|
+                  + Qi_core  * Qj_shell / |R_ij + D_j|
+                  + Qi_shell * Qj_shell / |R_ij + D_i - D_j|
+                  ]
+    and 
+    
+    U_coul_intra = (1/4πε₀) * (1/2) * ∑∑_{i≠j} [
+                    Qi_shell * Qj_shell / |R_ij|
+                  - Qi_shell * Qj_shell / |R_ij + D_i|
+                  - Qi_shell * Qj_shell / |R_ij + D_j|
+                  + Qi_shell * Qj_shell / |R_ij + D_i - D_j|
+                  ]
+
+    where:
+    - 1/4πε₀ is the Coulomb constant
+    - Qi_shell, Qj_shell are the Drude charges (only for shared molecules for U_coul_intra)
+    - Qi_core, Qj_core are the respective parent charges 
+    - R_ij is the distance matrix between sites i and j
+    - D_i, D_j are the displacements of Drude particles from parent atom nuclei
+    """ 
     
     # build denominator rij terms i
     Di = Dij[:, jnp.newaxis, :, jnp.newaxis, :]
@@ -86,10 +230,10 @@ def Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale):
 
     # compute intramolecular Coulomb matrix (of screened dipole-dipole pairs)
     U_coul_intra = (
-            Sij       * -Qi_shell * -Qj_shell / Rij_norm
-          + Sij_Di    *  Qi_shell * -Qj_shell / Rij_Di_norm
-          + Sij_Dj    * -Qi_shell *  Qj_shell / Rij_Dj_norm
-          + Sij_Di_Dj *  Qi_shell *  Qj_shell / Rij_Di_Dj_norm
+            Sij       * Qi_shell * Qj_shell / Rij_norm
+          - Sij_Di    * Qi_shell * Qj_shell / Rij_Di_norm
+          - Sij_Dj    * Qi_shell * Qj_shell / Rij_Dj_norm
+          + Sij_Di_Dj * Qi_shell * Qj_shell / Rij_Di_Dj_norm
     )
     # keep diagonal (intramolecular) components except for self-terms
     I_intra = jnp.eye(U_coul_intra.shape[0])
@@ -97,18 +241,15 @@ def Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale):
     U_coul_intra = (U_coul_intra * I_intra[:, :, jnp.newaxis, jnp.newaxis]) * (
         1 - I_self[jnp.newaxis, jnp.newaxis, :, :]
     )
-    jax.debug.print("U_coul_intr: {}", U_coul_intra)
     U_coul_total = 0.5 * safe_sum(U_coul_inter + U_coul_intra)
     
     return ONE_4PI_EPS0 * U_coul_total
 
 @jit
 def Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k):
-    """
-    Calculate total induction energy with decomposition,
-    U_total = U_induction + U_static, 
-    where 
-    U_induction = (U_coulomb - U_coulomb_static) + U_self.
+    """Calculate total induction energy.
+
+    U_ind = (U_coul - U_coul_static) + U_self.
 
     Arguments:
     <jaxlib.xla_extension.ArrayImp> Rij (nmol, nmol, natoms, natoms, 3)
@@ -139,13 +280,8 @@ def Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k):
     U_coul = Ucoul(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale)
     U_coul_static = Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core)
     U_self = Uself(Dij, k)
-    jax.debug.print("U_coul: {}", U_coul) 
-    jax.debug.print("U_coul_static: {}", U_coul_static) 
-    jax.debug.print("U_self: {}", U_self) 
-    U_ind = (U_coul - U_coul_static) + U_self
     
-    return U_ind
-
+    return (U_coul - U_coul_static) + U_self
 
 @jit
 def drudeOpt(
@@ -164,16 +300,6 @@ def drudeOpt(
     Uind w.r.t d.
 
     """
-    print(" %%%%% STARTING SCF %%%%%\n")
-    print(Rij)
-    jax.debug.print("Rij: {}", Rij)
-    jax.debug.print("Dij: {}", Dij0)
-    jax.debug.print("Qi_core: {}", Qi_core)
-    jax.debug.print("Qi_shell: {}", Qi_shell)
-    jax.debug.print("Qj_core: {}", Qj_core)
-    jax.debug.print("Qj_shell: {}", Qj_shell)
-    jax.debug.print("k: {}", k)
-    jax.debug.print("u_scale: {}", u_scale)
     
     Uind_min = lambda Dij: Uind(
         Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k
@@ -221,7 +347,7 @@ def openmm_inputs_polarization_energy(
     )
     U_ind = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
     print(f"U_ind (OpenMM): {Uind_openmm}\nU_ind (JAX): {U_ind}") 
-    return Uind_openmm
+    return U_ind
 
 
 def polarization_energy(R_core, Z_core, atom_types):
@@ -262,18 +388,9 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     else:
         Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
 
-    jax.debug.print("Rij: {}", Rij)
-    jax.debug.print("Dij: {}", Dij)
-            
     # get_QiQj() and get_pol_params() can, in principle, depend solely on the xml_file 
     Qi_core, Qi_shell, Qj_core, Qj_shell = openmm_utils.get_QiQj(simmd) 
-    jax.debug.print("Qi_core: {}", Qi_core)
-    jax.debug.print("Qi_shell: {}", Qi_shell)
-    jax.debug.print("Qj_core: {}", Qj_core)
-    jax.debug.print("Qj_shell: {}", Qj_shell)
     k, u_scale = openmm_utils.get_pol_params(simmd)
-    jax.debug.print("k: {}", k)
-    jax.debug.print("u_scale: {}", u_scale)
 
     ### These lines should live in polarization_energy_function later on ### 
     
@@ -287,11 +404,15 @@ def polarization_energy_sample(qcel_mol, **kwargs):
         u_scale,
         k,
     )
-    print("finished SCF for Dij")
-    jax.debug.print("Dij: {}", Dij)
+    
     U_ind = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
     
-    return U_ind
+    if kwargs.get("omm_decomp") is not None and kwargs.get("omm_decomp"):
+        U_df = _DrudeForce(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
+        U_nb = _NonbondedForce(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale)
+        return U_ind, U_df, U_nb
+    else:
+        return U_ind
 
 def polarization_energy_function(
     qcel_mol: qcel.models.Molecule,

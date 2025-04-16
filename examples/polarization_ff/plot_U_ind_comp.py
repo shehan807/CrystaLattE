@@ -23,6 +23,8 @@ def plot_induction_parity(
     distance_cutoff=None,
     verification=False,
     omm=False,
+    nonbondedforce=False,
+    drudeforce=False,
 ):
     """
     Reads a CSV with columns:
@@ -53,10 +55,19 @@ def plot_induction_parity(
     # Extract columns
     if verification:
         x_ref = df["Uind_omm"].values  # (kJ/mol)
+    elif drudeforce:
+        x_ref = df["Udf_omm"].values  # (kJ/mol)
+    elif nonbondedforce:
+        x_ref = df["Unb_omm"].values  # (kJ/mol)
     else:
         x_ref = df["Uind_sapt"].values  # (kJ/mol)
+    
     if omm:
         y_md = df["Uind_omm"].values      # (kJ/mol)
+    elif drudeforce:
+        y_md = df["Udf"].values  # (kJ/mol)
+    elif nonbondedforce:
+        y_md = df["Unb"].values  # (kJ/mol)
     else:
         y_md = df["Uind_md"].values      # (kJ/mol)
     color_distance = df["distance"].values
@@ -106,10 +117,18 @@ def plot_induction_parity(
     # 4) Axis labels & title
     if verification:
         ax.set_xlabel("OpenMM Induction (kJ/mol)", fontsize=fontsize)
+    elif drudeforce:
+        ax.set_xlabel("OpenMM DrudeForce (kJ/mol)", fontsize=fontsize)
+    elif nonbondedforce:
+        ax.set_xlabel("OpenMM NonbondedForce (kJ/mol)", fontsize=fontsize)
     else:
         ax.set_xlabel("SAPT Induction (kJ/mol)", fontsize=fontsize)
     if omm:
         ax.set_ylabel("OpenMM Induction (kJ/mol)", fontsize=fontsize)
+    elif drudeforce:
+        ax.set_ylabel("OpenMM DrudeForce (kJ/mol)", fontsize=fontsize)
+    elif nonbondedforce:
+        ax.set_ylabel("OpenMM NonbondedForce (kJ/mol)", fontsize=fontsize)
     else:
         ax.set_ylabel("MD Induction (kJ/mol)", fontsize=fontsize)
     ax.set_title(title, fontsize=fontsize)
@@ -220,6 +239,14 @@ def main():
         "-omm", "--openmm", action="store_true", default=False,
         help="Set y_md to OpenMM Uind mode (default: False)."
     ) 
+    parser.add_argument(
+        "-df", "--drudeforce", action="store_true", default=False,
+        help="Enable DrudeForce comparison (default: False)."
+    ) 
+    parser.add_argument(
+        "-nb", "--nonbondedforce", action="store_true", default=False,
+        help="Enable NonbondedForce comparison (default: False)."
+    ) 
     args = parser.parse_args()
 
     plot_induction_parity(
@@ -231,6 +258,8 @@ def main():
         distance_cutoff=args.distance_cutoff,
         verification=args.verification,
         omm=args.openmm,
+        drudeforce=args.drudeforce,
+        nonbondedforce=args.nonbondedforce,
     )
 
 
