@@ -1,6 +1,6 @@
 from . import openmm_utils
 from optax import safe_norm
-from jaxopt import BFGS, NonlinearCG
+from jaxopt import NonlinearCG
 import jax.numpy as jnp
 import jax
 from jax import jit
@@ -306,7 +306,7 @@ def drudeOpt(
     )
 
     start = time.time()
-    solver = BFGS(fun=Uind_min, tol=1e-16)
+    solver = NonlinearCG(fun=Uind_min, tol=1e-6)
     res = solver.run(init_params=Dij0)
     end = time.time()
     d_opt = res.params 
