@@ -1,12 +1,22 @@
 from . import openmm_utils
 from optax import safe_norm
-from jaxopt import BFGS, NonlinearCG
+from jaxopt import (
+    BFGS,
+    LBFGS,
+    GradientDescent,
+    ScipyMinimize,
+    AndersonAcceleration,
+    NonlinearCG,
+    PolyakSGD,
+)
 import jax.numpy as jnp
 import jax
 from jax import jit
 import numpy as np
 import qcelemental as qcel
 import os
+
+from functools import partial
 
 # U_Pol START
 import time
@@ -283,7 +293,8 @@ def Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k):
     
     return (U_coul - U_coul_static) + U_self
 
-@jit
+#@jit(static_argnames=["optimizer", "tolerance", "objective_function"])
+@partial(jax.jit,static_argnames=["optimizer", "tolerance", "objective_function"])
 def drudeOpt(
     Rij,
     Dij0,
@@ -294,19 +305,37 @@ def drudeOpt(
     u_scale,
     k,
     d_ref=None,
+    optimizer="BFGS", 
+    tolerance=1e-16, 
+    objective_function="Uind",
 ):
     """
     Iteratively determine core/shell displacements, d, by minimizing
     Uind w.r.t d.
 
     """
-    
-    Uind_min = lambda Dij: Uind(
-        Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k
-    )
+    if objective_function == "Uind":
+        U_min = lambda Dij: Uind(
+            Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k
+        )
+    elif objective_function == "Udf":
+        U_min = lambda Dij: _DrudeForce(
+            Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k
+        )
 
     start = time.time()
-    solver = BFGS(fun=Uind_min, tol=1e-16)
+
+    if optimizer == "BFGS":
+        solver = BFGS(fun=U_min, tol=tolerance)
+    elif optimizer == "LBFGS":
+        solver = LBFGS(fun=U_min, tol=tolerance)
+    elif optimizer == "GradientDescent":
+        solver = GradientDescent(fun=U_min, stepsize=1e-2, tol=tolerance)
+    elif optimizer == "NonlinearCG":
+        solver = NonlinearCG(fun=U_min, tol=tolerance)
+    elif optimizer == "PolyakSGD":
+        solver = PolyakSGD(fun=U_min, tol=tolerance)
+
     res = solver.run(init_params=Dij0)
     end = time.time()
     d_opt = res.params 
@@ -393,7 +422,9 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     k, u_scale = openmm_utils.get_pol_params(simmd)
 
     ### These lines should live in polarization_energy_function later on ### 
-    
+    optimizer = kwargs.get("optimizer") 
+    tolerance = float(kwargs.get("tolerance"))
+    objective_function = kwargs.get("objective_function") 
     Dij = drudeOpt(
         Rij,
         jnp.ravel(Dij),
@@ -403,6 +434,9 @@ def polarization_energy_sample(qcel_mol, **kwargs):
         Qj_core,
         u_scale,
         k,
+        optimizer=optimizer, 
+        tolerance=tolerance, 
+        objective_function=objective_function,
     )
     
     U_ind = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)

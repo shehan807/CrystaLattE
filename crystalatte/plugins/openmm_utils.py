@@ -282,7 +282,7 @@ def r_core_to_pdb(r_core, pdb_template, pdb_file="tmp.pdb"):
     with open(pdb_file, "w") as f:
         PDBFile.writeFile(pdb.topology, pdb.positions, f)
     
-    print(f"Created {pdb_file}!") 
+    #print(f"Created {pdb_file}!") 
 
 def get_QiQj(simmd):
     """Obtain core and shell charges.

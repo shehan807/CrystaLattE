@@ -43,8 +43,7 @@ def main():
                     # print(f"openmm_inputs_polarization_energy works!")
 
                     df     = pd.read_pickle(pkl_file)
-                    df_ref = pd.read_pickle(ref_pkl_file)
-                    #df_merged = df.merge(df_ref[["N-mer Name", "SAPT0 Induction (kJ/mol)"]], on="N-mer Name", how="left")
+                    print(df.columns)
                     results = []
                     unconverged = 0
                     total = 0
@@ -53,11 +52,11 @@ def main():
                     conv_jax = []
                     for index, row in df.iterrows():
                         total += 1
-                        qcel_mol = row["qcel_mol"]
+                        qcel_mol = row["mol"]
                         distance = row["Minimum Monomer Separations (A)"] 
                         Nmer_name = row["N-mer Name"]
-                        
-                        Uind_md, Udf, Unb = force_fields.polarization_energy_sample(
+                        Ues_sapt = row["SAPT0 Electrostatics (kJ/mol)"] 
+                        Ues_md, Udf, Unb = force_fields.polarization_energy_sample(
                                 qcel_mol, 
                                 pdb_file=pdb_file,
                                 xml_file=ff_file,
@@ -77,7 +76,7 @@ def main():
                             platform_name="CPU",
                         )
 
-                        Uind_omm, Udf_omm, Unb_omm = openmm_utils.U_ind_omm(simmd, decomp=True)
+                        Ues_omm, Udf_omm, Unb_omm = openmm_utils.U_ind_omm(simmd, decomp=True)
 
                         if abs(Uind_md-Uind_omm) > 100:
                             unconverged += 1
@@ -88,15 +87,16 @@ def main():
                         results.append({
                             "distance": distance,
                             "nmer_name": Nmer_name,
-                            "Uind_md": Uind_md,
+                            "Ues_sapt": Ues_sapt,
+                            "Ues_md": Uind_md,
                             "Udf": Udf,
                             "Unb": Unb,
-                            "Uind_omm":Uind_omm,
+                            "Ues_omm":Uind_omm,
                             "Udf_omm":Udf_omm,
                             "Unb_omm":Unb_omm,
                         })
 
-                        print(f"(Uind_md, Uind_omm, distance) = ({Uind_md},{Uind_omm},{distance})")
+                        print(f"(Ues_md, Ues_omm, distance) = ({Ues_md},{Ues_omm},{distance})")
                         #if total > 50:
                         #    break
                     results_df = pd.DataFrame(results)
