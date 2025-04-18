@@ -12,6 +12,16 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
+import os 
+
+def inset_image(ax, insetPath):
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    from PIL import Image
+    image1 = Image.open(insetPath)
+
+    ax_inset1 = inset_axes(ax, width="150%", height="150%", loc="upper right", bbox_to_anchor=(0.4, 0.8, 0.2, 0.2), bbox_transform=ax.transAxes)
+    ax_inset1.imshow(image1)
+    ax_inset1.axis('off')
 
 
 def plot_induction_parity(
@@ -25,6 +35,8 @@ def plot_induction_parity(
     omm=False,
     nonbondedforce=False,
     drudeforce=False,
+    electrostatics=False,
+    image_path=None,  
 ):
     """
     Reads a CSV with columns:
@@ -50,6 +62,8 @@ def plot_induction_parity(
     """
     # 1) Read the CSV
     df = pd.read_csv(csv_file)
+    time_per_system = df['time_per_system'].iloc[0]
+
     if distance_cutoff is not None:
         df = df[df["distance"] > distance_cutoff]
     # Extract columns
@@ -59,6 +73,8 @@ def plot_induction_parity(
         x_ref = df["Udf_omm"].values  # (kJ/mol)
     elif nonbondedforce:
         x_ref = df["Unb_omm"].values  # (kJ/mol)
+    elif electrostatics:
+        x_ref = df["Ues_sapt"].values  # (kJ/mol)
     else:
         x_ref = df["Uind_sapt"].values  # (kJ/mol)
     
@@ -68,6 +84,8 @@ def plot_induction_parity(
         y_md = df["Udf"].values  # (kJ/mol)
     elif nonbondedforce:
         y_md = df["Unb"].values  # (kJ/mol)
+    elif electrostatics:
+        y_md = df["Ues"].values  # (kJ/mol)
     else:
         y_md = df["Uind_md"].values      # (kJ/mol)
     color_distance = df["distance"].values
@@ -121,6 +139,8 @@ def plot_induction_parity(
         ax.set_xlabel("OpenMM DrudeForce (kJ/mol)", fontsize=fontsize)
     elif nonbondedforce:
         ax.set_xlabel("OpenMM NonbondedForce (kJ/mol)", fontsize=fontsize)
+    elif electrostatics:
+        ax.set_xlabel("SAPT Electrostatics (kJ/mol)", fontsize=fontsize)
     else:
         ax.set_xlabel("SAPT Induction (kJ/mol)", fontsize=fontsize)
     if omm:
@@ -129,9 +149,11 @@ def plot_induction_parity(
         ax.set_ylabel("OpenMM DrudeForce (kJ/mol)", fontsize=fontsize)
     elif nonbondedforce:
         ax.set_ylabel("OpenMM NonbondedForce (kJ/mol)", fontsize=fontsize)
+    elif electrostatics:
+        ax.set_ylabel("MD Electrostatics (kJ/mol)", fontsize=fontsize)
     else:
         ax.set_ylabel("MD Induction (kJ/mol)", fontsize=fontsize)
-    ax.set_title(title, fontsize=fontsize)
+    # ax.set_title(title, fontsize=fontsize)
 
     # 5) Plot scatter, color by distance
     sc = ax.scatter(
@@ -170,7 +192,8 @@ def plot_induction_parity(
         f"MAE: {mae:.5f} kJ/mol\n"
         f"RMSE: {rmse:.5f} kJ/mol\n"
         f"R²: {r2:.5f}\n"
-        f"Max error: {max_error:.5f} kJ/mol"
+        f"Max error: {max_error:.5f} kJ/mol\n"
+        f"Speed: {time_per_system:0.4f} sec/dimer"
     )
     ax.text(
         text_x,
@@ -194,6 +217,18 @@ def plot_induction_parity(
     ax_inset.set_xlim(-half_range, half_range)
     ax_inset.set_yticks([])
     ax_inset.axvline(0.0, color="k", linestyle="--", linewidth=1.5)
+
+    # Add image if provided
+    if image_path is not None:
+        print("ADDING IMAGE TO PLOT")
+        # Determine image path relative to the CSV file if not absolute
+        if not os.path.isabs(image_path):
+            csv_dir = os.path.dirname(os.path.abspath(csv_file))
+            full_image_path = os.path.join(csv_dir, image_path)
+        else:
+            full_image_path = image_path
+            
+        inset_image(ax, full_image_path)
 
     # 9) Save
     plt.tight_layout()
@@ -247,6 +282,14 @@ def main():
         "-nb", "--nonbondedforce", action="store_true", default=False,
         help="Enable NonbondedForce comparison (default: False)."
     ) 
+    parser.add_argument(
+        "-es", "--electrostatics", action="store_true", default=False,
+        help="Enable SAPT (Electrostatics) comparison (default: False)."
+    ) 
+    parser.add_argument(
+        "--image",
+        help="Path to an image file to add to the plot. Can be relative to CSV file."
+    )
     args = parser.parse_args()
 
     plot_induction_parity(
@@ -260,6 +303,8 @@ def main():
         omm=args.openmm,
         drudeforce=args.drudeforce,
         nonbondedforce=args.nonbondedforce,
+        electrostatics=args.electrostatics,
+        image_path=args.image,
     )
 
 

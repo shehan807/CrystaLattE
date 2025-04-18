@@ -406,11 +406,11 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     )
     
     U_ind = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
-    
     if kwargs.get("omm_decomp") is not None and kwargs.get("omm_decomp"):
+        Ues = Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core)
         U_df = _DrudeForce(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
         U_nb = _NonbondedForce(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale)
-        return U_ind, U_df, U_nb
+        return U_ind, U_df, U_nb, Ues
     else:
         return U_ind
 

@@ -36,6 +36,59 @@ AVOGADRO = 6.02214076e23
 EPSILON0 = 1e-6 * 8.8541878128e-12 / (E_CHARGE * E_CHARGE * AVOGADRO)
 ONE_4PI_EPS0 = 1 / (4 * M_PI * EPSILON0)
 
+def _map_mol(mol, _map):
+
+    atom_types = pd.read_csv(_map, names=["From", "To"])
+    source_type_symbols = [i[0] for i in atom_types["From"].values]
+    n_fragments = len(mol.fragments)
+    mapped_fragments = []
+
+    for i in range(n_fragments):
+        
+        mol_i = mol.get_fragment(i)
+        #print(mol_i.geometry)
+        target_types = [f"{s}{i}" for i,s in enumerate(mol_i.symbols)]
+        
+        geometry = np.array(mol_i.geometry)*constants.conversion_factor("bohr", "nanometer")
+        geometry_mapped = np.zeros_like(geometry)
+        for idx, _type in enumerate(target_types):
+            idx_mapped = atom_types[atom_types["To"] == _type].index[0]
+            geometry_mapped[idx_mapped] = geometry[idx]
+            
+        mol_mapped_i = qcel.models.Molecule(
+                symbols=source_type_symbols,
+                geometry=geometry_mapped * constants.conversion_factor("nanometer", "bohr"),  # Convert back to bohr for QCElemental
+                name=f"mapped_mol_{i}",
+        )
+        #print(mol_mapped_i)
+        #print(mol_mapped_i.geometry)
+        mapped_fragments.append(mol_mapped_i)
+    
+    combined_geoms = np.vstack([frag.geometry for frag in mapped_fragments])
+    #print(combined_geoms)
+    combined_symbols = []
+    for frag in mapped_fragments:
+        combined_symbols.extend(frag.symbols)
+
+    # Create fragments list for the combined molecule
+    fragments = []
+    atom_counter = 0
+    for frag in mapped_fragments:
+        n_atoms = len(frag.symbols)
+        fragments.append(list(range(atom_counter, atom_counter + n_atoms)))
+        atom_counter += n_atoms
+    
+    # Create the combined molecule
+    combined_mol = qcel.models.Molecule(
+        symbols=combined_symbols,
+        geometry=combined_geoms,
+        name="mapped_mol_combined",
+        fragments=fragments  # Properly specify fragments
+    )
+
+    return combined_mol
+
+
 def _create_topology(qcel_mol, old_pdb_path, atom_types_map):
     """Create new topology based on QCElemental "topology"."""
     
@@ -49,7 +102,8 @@ def _create_topology(qcel_mol, old_pdb_path, atom_types_map):
     
     old_pdb_path = Path(old_pdb_path)
     tmp_pdb = old_pdb_path.with_name(old_pdb_path.stem + "_tmp" + old_pdb_path.suffix)
-    
+   
+    qcel_mol = _map_mol(qcel_mol, atom_types_map)
     _molecule_to_pdb_file(qcel_mol, tmp_pdb, residue_name, atom_types_map) 
     _add_CONECT(tmp_pdb)
 
@@ -68,12 +122,12 @@ def _molecule_to_pdb_file(molecule, filename: str, res_name: str, atom_types_map
         residue_name = res_name
         chain_id = ' '
         if atom_types_map:
-            type_map = pd.read_csv(atom_types_map, names=["From", "To"]).set_index("To")
-             
+            type_map = pd.read_csv(atom_types_map, names=["From", "To"])#.set_index("To")
+            type_map = type_map["From"].tolist()
         for i, atom in enumerate(fragment):
             symbol = symbols[atom]
             xyz = coords[atom]
-            atom_name = type_map.loc[f"{symbol.upper()}{i}", "From"]
+            atom_name = type_map[i] #.loc[f"{symbol.upper()}{i}", "From"]
 
             pdb_lines.append(
                 f"ATOM  {atom_idx:5d} {atom_name:<4} {residue_name:<3} {chain_id}{res_seq:4d}    "
