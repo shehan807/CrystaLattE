@@ -77,7 +77,6 @@ def main():
                 "Unb_omm":Unb_omm,
             })
             print(f"(Ues_sapt, Ues, Uind_sapt, Uind_md, Uind_omm, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt},{Uind_md},{Uind_omm},{distance})")
-            break
         end_time = time.time()
         results_df = pd.DataFrame(results)
         results_df['time_per_system'] = (end_time - start_time) / len(results)
