@@ -1,4 +1,5 @@
 from . import openmm_utils
+from .openmm_utils import XmlMD
 from optax import safe_norm
 from jaxopt import NonlinearCG
 import jax.numpy as jnp
@@ -382,7 +383,11 @@ def polarization_energy_sample(qcel_mol, **kwargs):
                 ff_file=xml_file,
                 residue_file=residue_file,
     )
-    
+   
+    xmlmd = XmlMD(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
+    xmlmd.parse_xml(xml_file)
+    xmlmd.summary()
+
     if kwargs.get("update_pdb") is not None and kwargs.get("update_pdb"):
         Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map, pdb_template=pdb_file)
     else:
@@ -391,6 +396,21 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     # get_QiQj() and get_pol_params() can, in principle, depend solely on the xml_file 
     Qi_core, Qi_shell, Qj_core, Qj_shell = openmm_utils.get_QiQj(simmd) 
     k, u_scale = openmm_utils.get_pol_params(simmd)
+    
+
+    Qi_core_off, Qi_shell_off, Qj_core_off, Qj_shell_off = openmm_utils.get_QiQj_off(xmlmd) 
+    k_off, u_scale_off = openmm_utils.get_pol_params(simmd)
+    
+    print(f"Qi_core:{Qi_core}\nQi_core_off:{Qi_core_off}")
+    print(f"Qi_shell:{Qi_shell}\nQi_shell_off:{Qi_shell_off}")
+
+    assert np.array_equal(Qi_core, Qi_core_off)
+    assert np.array_equal(Qi_shell, Qi_shell_off)
+    assert np.array_equal(Qj_core, Qj_core_off)
+    assert np.array_equal(Qj_shell, Qj_shell_off)
+    assert np.array_equal(k, k_off)
+    assert np.array_equal(u_scale, u_scale_off)
+    print(f"all off vs omm data structures passed")
 
     ### These lines should live in polarization_energy_function later on ### 
     

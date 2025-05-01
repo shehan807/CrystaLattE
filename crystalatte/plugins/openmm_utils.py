@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from MDAnalysis import Universe 
+import xml.etree.ElementTree as ET
 
 from openmm.vec3 import Vec3
 from openmm.app import (
@@ -35,6 +36,122 @@ E_CHARGE = 1.602176634e-19
 AVOGADRO = 6.02214076e23
 EPSILON0 = 1e-6 * 8.8541878128e-12 / (E_CHARGE * E_CHARGE * AVOGADRO)
 ONE_4PI_EPS0 = 1 / (4 * M_PI * EPSILON0)
+import xml.etree.ElementTree as ET
+
+import xml.etree.ElementTree as ET
+
+class XmlMD:
+    """
+    A single container for all parsed data from an OpenMM-style XML file,
+    plus additional attributes such as a QCElemental Molecule object and
+    a custom mapping from QCEngine/QCElemental to the parsed atom types.
+    """
+
+    def __init__(self, qcel_mol=None, atom_types_map=None):
+        """
+        Initialize the XmlMD object.
+
+        Parameters
+        ----------
+        qcel_mol : Molecule-like object, optional
+            A QCElemental or QCEngine "Molecule" object (or similar).
+        atom_types_map : str, optional
+            A user-defined .csv file mapping from (some QCEngine label) -> 
+            (XML atom type).
+        """
+        # The parsed data from the XML:
+        self.atom_types   = {}
+        self.residues     = {}
+        self.nonbonded_params  = {}
+        self.drude_params = {}
+
+        # Additional attributes:
+        self.qcel_mol         = qcel_mol
+        self.atom_types_map   = pd.read_csv(atom_types_map, names=["From", "To"])
+
+    def parse_xml(self, xml_file):
+        """Populate this XmlMD object by parsing an OpenMM-style XML file."""
+        tree = ET.parse(xml_file)
+        root = tree.getroot()
+
+        # Parse <AtomTypes>
+        # <Type name="IM-N0"   class="NI0"  element="N" mass="13.6067"/>
+        # <Type name="IM-DN0"  class="Sh"               mass="0"/>
+        atomtypes_section = root.find('AtomTypes')
+        if atomtypes_section is not None:
+            for type_el in atomtypes_section.findall('Type'):
+                name    = type_el.get('name')
+                aclass  = type_el.get('class')
+                elem    = type_el.get('element', '') # Drudes have no element
+                mass = float(type_el.get('mass'))
+                self.atom_types[name] = {
+                    'class': aclass,
+                    'element': elem,
+                    'mass': mass
+                }
+
+        # Parse <Residues>
+        # <Atom name="N00"  type="IM-N00"/>
+        residues_section = root.find('Residues')
+        if residues_section is not None:
+            for residue_el in residues_section.findall('Residue'):
+                rname = residue_el.get('name')
+                atomlist = []
+                for atom_el in residue_el.findall('Atom'):
+                    aname = atom_el.get('name')
+                    atype = atom_el.get('type')
+                    atomlist.append((aname, atype))
+                self.residues[rname] = atomlist
+
+        # Parse <NonbondedForce>
+        # <Atom type="IM-N0"   charge="0.4939"  sigma="1.00000" epsilon="0.00000"/>
+        nb_section = root.find('NonbondedForce')
+        if nb_section is not None:
+            for atom_el in nb_section.findall('Atom'):
+                tname = atom_el.get('type')
+                q     = float(atom_el.get('charge'))
+                sig   = float(atom_el.get('sigma'))
+                eps   = float(atom_el.get('epsilon'))
+                self.nonbonded_params[tname] = (q, sig, eps)
+
+        # Parse <DrudeForce>
+        # <Particle type1="IM-DC21" type2="IM-C21" charge="-1.1478" polarizability="0.00195233" thole="1"/>
+        drude_section = root.find('DrudeForce')
+        if drude_section is not None:
+            for part_el in drude_section.findall('Particle'):
+                dtype = part_el.get('type1')
+                ptype = part_el.get('type2')
+                dq    = float(part_el.get('charge'))
+                alpha = float(part_el.get('polarizability'))
+                thole = float(part_el.get('thole'))
+                self.drude_params[dtype] = {
+                    'drude_type': dtype,
+                    'parent_type': ptype,
+                    'drude_charge': dq,
+                    'polarizability': alpha,
+                    'thole': thole
+                }
+
+    def summary(self):
+        """A demo method to show what's been parsed."""
+        print(f"AtomTypes: {len(self.atom_types)} types parsed")
+        print(f"Residues:  {len(self.residues)} residue templates parsed")
+        print(f"Nonbonded: {len(self.nonbonded_params)} parameter entries")
+        print(f"Drude:     {len(self.drude_params)} drude entries")
+        print(f"{self.atom_types}")
+        print(f"{self.residues}")
+        print(f"{self.nonbonded_params}")
+        print(f"{self.drude_params}")
+        if self.qcel_mol is not None:
+            print("QCElemental Molecule is attached.")
+            # e.g., print info about self.qcel_mol
+            print(f"  Molecule name: {getattr(self.qcel_mol, 'name', '???')}")
+            print(f"  Number of molecules: {len(self.qcel_mol.fragments)}")
+            print(f"  Number of atoms: {len(self.qcel_mol.symbols)}")
+
+        if self.atom_types_map is not None:
+            print(f"Custom atom_types_map provided with {len(self.atom_types_map)} entries.")
+            print(f"{self.atom_types_map}")
 
 def _map_mol(mol, _map):
 
@@ -352,7 +469,7 @@ def get_QiQj(simmd):
     and Qi Qj terms can be created w/o OpenMM.
 
     """
-
+    print(f"%%%%%%%% get_QiQj %%%%%%%%%%%")
     system = simmd.system
     topology = simmd.topology
 
@@ -362,13 +479,14 @@ def get_QiQj(simmd):
     parent_indices = [drude.getParticleParameters(i)[1] for i in range(numDrudes)]
 
     nonbonded = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
-
+    
     q_core = []
     q_shell = []
     for i, res in enumerate(topology.residues()):
         res_charge = []
         res_shell_charge = []
         for atom in res.atoms():
+            print(atom.name)
             #print(atom.index, atom.name)
             # skip over drude particles
             if atom.index in drude_indices:
@@ -622,4 +740,61 @@ def U_ind_omm(simmd, decomp=False):
                 _DrudeForce = _DrudeForce.value_in_unit(kilojoules_per_mole)
         return Uind_omm, _DrudeForce, _NonbondedForce
     else:
-        return Uind_omm 
+        return Uind_omm
+
+def get_QiQj_off(xmlmd):
+
+    # build a look up between drudes and their parents, and vice versa
+    drude2parent = {}
+    parent2drude = {}
+    for key, dparam in xmlmd.drude_params.items():
+        drude2parent[dparam['drude_type']] = dparam['parent_type']
+        parent2drude[dparam['parent_type']] = dparam['drude_type']
+    print(drude2parent)
+    print(parent2drude)
+
+    q_core = []
+    q_shell = []
+    nmols = len(xmlmd.qcel_mol.fragments)
+    for i in range(nmols):
+        res_charge = [] 
+        res_shell_charge = []
+        for atom in xmlmd.atom_types:
+            print(f"atom:{atom}")
+            if xmlmd.atom_types[atom]["class"] == "Sh":
+                print(f"atom {atom} is a Drude, continue!")
+                continue 
+            if atom in parent2drude:
+                drude_atom = parent2drude[atom]
+                print(f"atom {atom} is a parent to atom {drude_atom}")
+                res_shell_charge.append(xmlmd.drude_params[drude_atom]['drude_charge'])
+            else: 
+                res_shell_charge.append(0.0)
+            q, _, _ = xmlmd.nonbonded_params[atom]
+            res_charge.append(q)
+        q_core.append(res_charge)
+        q_shell.append(res_shell_charge)
+    
+    q_core = jnp.array(q_core)
+    q_shell = jnp.array(q_shell)
+    
+    # break up core-shell, shell-core, and shell-shell terms
+    Qi_shell = q_shell[:, jnp.newaxis, :, jnp.newaxis]
+    Qj_shell = q_shell[jnp.newaxis, :, jnp.newaxis, :]
+    Qi_core = q_core[:, jnp.newaxis, :, jnp.newaxis]
+    Qj_core = q_core[jnp.newaxis, :, jnp.newaxis, :]
+
+    return Qi_core, Qi_shell, Qj_core, Qj_shell
+
+
+    # In your original code, Qi_core, etc. are 4D.
+    # We'll just do a placeholder for the final shape:
+    #Qi_core  = np.array(q_core)[..., None]  # shape (natoms, 1), etc.
+    #Qi_shell = np.array(q_shell)[..., None]
+    ## Then replicate as needed for Qj.
+    #Qj_core  = Qi_core.T
+    #Qj_shell = Qi_shell.T
+
+    #return (Qi_core, Qi_shell, Qj_core, Qj_shell)
+
+
