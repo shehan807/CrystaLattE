@@ -9,6 +9,7 @@ import pandas as pd
 from pathlib import Path
 from MDAnalysis import Universe 
 import xml.etree.ElementTree as ET
+from copy import deepcopy 
 
 from openmm.vec3 import Vec3
 from openmm.app import (
@@ -62,13 +63,88 @@ class XmlMD:
         # The parsed data from the XML:
         self.atom_types   = {}
         self.residues     = {}
+        self.bonds        = []
         self.nonbonded_params  = {}
         self.drude_params = {}
+        self.core_atom_types = []
 
         # Additional attributes:
         self.qcel_mol         = qcel_mol
         self.atom_types_map   = pd.read_csv(atom_types_map, names=["From", "To"])
 
+    def _findExclusions(self, bonds, atoms, drudes, maxSeparation=4):
+        """
+        Identify pairs of atoms in the same molecule separated by no more than
+        `maxSeparation` bonds. Adapted from OpenMM forcefield.py's _findExclusions().
+        - `bonds` and `atoms` contain atom type name's, i.e., str type
+        """
+
+        # map each atom type string -> integer index
+        type2idx = {t: i for i, t in enumerate(atoms)}
+        print(type2idx)
+        numAtoms = len(atoms)
+        print(f"numAtoms: {numAtoms}")
+
+        # convert your bond list ("atomTypeA", "atomTypeB") into (idx, idx)
+        bondIndices = []
+        for a, b in bonds:
+            i = type2idx[a]
+            j = type2idx[b]
+            bondIndices.append((i, j))
+        print(bondIndices) 
+
+        # verbatim logic from OpenMM's forcefield.py
+        bondedTo = [set() for i in range(numAtoms)]
+        for i, j in bondIndices:
+            bondedTo[i].add(j)
+            bondedTo[j].add(i)
+        print(bondedTo)
+        # Identify all neighbors of each atom with each separation.
+        bondedWithSeparation = [bondedTo]
+        for i in range(maxSeparation-1):
+            lastBonds = bondedWithSeparation[-1]
+            newBonds = deepcopy(lastBonds)
+            for atom in range(numAtoms):
+                for a1 in lastBonds[atom]:
+                    for a2 in bondedTo[a1]:
+                        newBonds[atom].add(a2)
+            bondedWithSeparation.append(newBonds)
+        print(bondedWithSeparation) 
+
+        # Build the list of pairs with the actual separation
+        pairs = []
+        for atom in range(numAtoms):
+            for otherAtom in bondedWithSeparation[-1][atom]:
+                if otherAtom > atom:
+                    # Determine the minimum number of bonds between them
+                    sep = maxSeparation
+                    for i in reversed(range(maxSeparation-1)):
+                        if otherAtom in bondedWithSeparation[i][atom]:
+                            sep -= 1
+                        else:
+                            break
+                    # Convert back to atom type strings
+                    try:
+                        drudeA = self.parent2drude[atoms[atom]]
+                        drudeB = self.parent2drude[atoms[otherAtom]]
+                    except KeyError:
+                        # skip over atoms which don't have drudes (e.g., H atoms)
+                        continue
+                    thole = drudes[drudeA]['thole'] + drudes[drudeB]['thole']
+                    screenedPair = (atom, otherAtom, thole)
+                    print(screenedPair)
+                    pairs.append(screenedPair)
+
+        print(pairs)
+        return pairs
+    
+    def _drude_maps(self, drude_params):
+        self.drude2parent = {}
+        self.parent2drude = {}
+        for key, dparam in drude_params.items():
+            self.drude2parent[dparam['drude_type']] = dparam['parent_type']
+            self.parent2drude[dparam['parent_type']] = dparam['drude_type']
+    
     def parse_xml(self, xml_file):
         """Populate this XmlMD object by parsing an OpenMM-style XML file."""
         tree = ET.parse(xml_file)
@@ -92,6 +168,7 @@ class XmlMD:
 
         # Parse <Residues>
         # <Atom name="N00"  type="IM-N00"/>
+        # NOTE: for OpenMM reproducibility, indicies are based on Residue topology!
         residues_section = root.find('Residues')
         if residues_section is not None:
             for residue_el in residues_section.findall('Residue'):
@@ -102,14 +179,24 @@ class XmlMD:
                     atype = atom_el.get('type')
                     atomlist.append((aname, atype))
                 self.residues[rname] = atomlist
-        
+                
+                # Parse Bond Topology
+                # <Bond from="7"  to="6"/>
+                for bond_el in residue_el.findall('Bond'):
+                    b_from = int(bond_el.get('from'))
+                    b_to   = int(bond_el.get('to'))
+
+                    #self.bonds.append(Bond(b_from, b_to))
+                    #self.bonds.append((bond_el.attrib['from'], bond_el.attrib['to']))
+                    self.bonds.append((atomlist[b_from][1],atomlist[b_to][1]))
+
         # If more than one residue name is found, raise error
         if len(self.residues) > 1:
             raise ValueError(
                 f"Multiple residues found ({list(self.residues.keys())}), "
                 "but only homo-nmers are supported."
             )
-
+        
         # Parse <NonbondedForce>
         # <Atom type="IM-N0"   charge="0.4939"  sigma="1.00000" epsilon="0.00000"/>
         nb_section = root.find('NonbondedForce')
@@ -138,13 +225,24 @@ class XmlMD:
                     'polarizability': alpha,
                     'thole': thole
                 }
+        self.core_atom_types = [atype for aname, atype in self.residues[rname] if atype not in self.drude_params]
+        self._drude_maps(drude_params=self.drude_params)
+        self.screenedPairs = self._findExclusions(
+            bonds=self.bonds,
+            atoms=self.core_atom_types,
+            drudes=self.drude_params,
+        )
 
     def summary(self):
         """A demo method to show what's been parsed."""
         print(f"AtomTypes: {len(self.atom_types)} types parsed")
+        print(f"All Atom Types: {self.atom_types}")
+        print(f"Core Atom Types: {self.core_atom_types}")
         print(f"Residues:  {len(self.residues)} residue templates parsed")
+        print(f"Bonds: {self.bonds}")
         print(f"Nonbonded: {len(self.nonbonded_params)} parameter entries")
         print(f"Drude:     {len(self.drude_params)} drude entries")
+        print(f"Screened Pairs: {len(self.screenedPairs)}\n{self.screenedPairs}")
         if self.qcel_mol is not None:
             print("QCElemental Molecule is attached.")
             # e.g., print info about self.qcel_mol
@@ -486,17 +584,17 @@ def get_QiQj(simmd):
     for i, res in enumerate(topology.residues()):
         res_charge = []
         res_shell_charge = []
-        print(f"Setting up charges for {res.name}")
+        #print(f"Setting up charges for {res.name}")
         for atom in res.atoms():
-            print(atom.index, atom.name)
+            #print(atom.index, atom.name)
             # skip over drude particles
             if atom.index in drude_indices:
-                print(f"*skipped {atom.name}*")
+                #print(f"*skipped {atom.name}*")
                 continue
             charge, sigma, epsilon = nonbonded.getParticleParameters(atom.index)
-            print(f"q={charge} for ({atom.index},{atom.name})")
+            #print(f"q={charge} for ({atom.index},{atom.name})")
             charge = charge.value_in_unit(elementary_charge)
-            print(f"q={charge} for ({atom.index},{atom.name})")
+            #print(f"q={charge} for ({atom.index},{atom.name})")
             # assign drude positions for respective parent atoms
             if atom.index in parent_indices:
                 drude_params = drude.getParticleParameters(
@@ -510,7 +608,7 @@ def get_QiQj(simmd):
 
             res_charge.append(charge)
         
-        print(res_charge)
+        #print(res_charge)
         q_core.append(res_charge)
         q_shell.append(res_shell_charge)
 
@@ -565,16 +663,19 @@ def get_pol_params(simmd):
     numResidues = len(list(topology.residues()))
 
     for i, res in enumerate(topology.residues()):
+        print(f"Pol Params for {res.name}")
         res_shell_charge = []
         res_alpha = []
         numAtoms = len(list(res.atoms()))
         for atom in res.atoms():
+            print(f"atom ({atom.index}, {atom.name})")
             # assign drude positions for respective parent atoms
             if atom.index in drude_indices:
                 continue
             charge, sigma, epsilon = nonbonded.getParticleParameters(atom.index)
             charge = charge.value_in_unit(elementary_charge)
             if atom.index in parent_indices:
+                print(f"atom {atom.name} is parent")
                 # map parent index to drude index
                 drude_params = drude.getParticleParameters(
                     parent_indices.index(atom.index)
@@ -582,6 +683,7 @@ def get_pol_params(simmd):
                 drude_charge = drude_params[5].value_in_unit(elementary_charge)
                 alpha = drude_params[6]
                 numScreenedPairs = drude.getNumScreenedPairs()
+                print(f"numScreenedPairs: {numScreenedPairs}")
                 if numScreenedPairs > 0:
                     if not tholeMatrixMade:
                         natoms_per_res = int(
@@ -596,6 +698,7 @@ def get_pol_params(simmd):
 
                         for sp_i in range(numScreenedPairs):
                             screened_params = drude.getScreenedPairParameters(sp_i)
+                            #print(f"sp_{sp_i}: {screened_params}")
                             prt0_params = drude.getParticleParameters(
                                 screened_params[0]
                             )
@@ -608,7 +711,7 @@ def get_pol_params(simmd):
                             core1 = prt1_params[1]
                             alpha1 = prt1_params[6].value_in_unit(nanometer**3)
                             thole = screened_params[2]
-
+                            print(f"({core0},{core1}, {thole})")
                             # ensure indices don't exceed single-residue atom indices
                             if core0 >= natoms:
                                 core0 = core0 % natoms
@@ -791,4 +894,142 @@ def get_QiQj_off(xmlmd):
 
     return Qi_core, Qi_shell, Qj_core, Qj_shell
 
+def get_pol_params_off(xmlmd):
+    """Obtain spring constants and Thole screening term.
 
+    Spring constants are defined as:
+    k = q_shell^2 / alpha,
+    where alpha are the atomic polarizabilities.
+
+    The Thole screening term (later used to define the screening function, Sij) is:
+    u_scale = a / (alpha_i * alpha_j)^(1/6),
+    where "a" is the Thole damping constant.
+    """
+    
+
+    #############################################################################
+    # build a look up between drudes and their parents, and vice versa
+    drude2parent = {}
+    parent2drude = {}
+    for key, dparam in xmlmd.drude_params.items():
+        drude2parent[dparam['drude_type']] = dparam['parent_type']
+        parent2drude[dparam['parent_type']] = dparam['drude_type']
+    
+    q_core = []
+    q_shell = []
+    nmols = len(xmlmd.qcel_mol.fragments)
+    for i in range(nmols):
+        res_charge = [] 
+        res_shell_charge = []
+        resname = next(iter(xmlmd.residues))
+        for _, atom in xmlmd.residues[resname]:
+            if xmlmd.atom_types[atom]["class"] == "Sh":
+                # skip over drude particles
+                continue 
+            # assign drude charges for respective parent atoms
+            if atom in parent2drude:
+                drude_atom = parent2drude[atom]
+                res_shell_charge.append(xmlmd.drude_params[drude_atom]['drude_charge'])
+            else: 
+                res_shell_charge.append(0.0)
+            q, _, _ = xmlmd.nonbonded_params[atom]
+            res_charge.append(q)
+    ###############################################################################
+
+    q_shell = []
+    alphas = []
+    tholes = []
+    tholeMatrixMade = False
+    numResidues = len(list(topology.residues()))
+
+    for i, res in enumerate(topology.residues()):
+        res_shell_charge = []
+        res_alpha = []
+        numAtoms = len(list(res.atoms()))
+        for atom in res.atoms():
+            # assign drude positions for respective parent atoms
+            if atom.index in drude_indices:
+                continue
+            charge, sigma, epsilon = nonbonded.getParticleParameters(atom.index)
+            charge = charge.value_in_unit(elementary_charge)
+            if atom.index in parent_indices:
+                # map parent index to drude index
+                drude_params = drude.getParticleParameters(
+                    parent_indices.index(atom.index)
+                )
+                drude_charge = drude_params[5].value_in_unit(elementary_charge)
+                alpha = drude_params[6]
+                numScreenedPairs = drude.getNumScreenedPairs()
+                if numScreenedPairs > 0:
+                    if not tholeMatrixMade:
+                        natoms_per_res = int(
+                            (topology.getNumAtoms() - len(drude_indices))
+                            / topology.getNumResidues()
+                        )
+                        natoms = len(list(res.atoms()))
+                        nmol = len(list(topology.residues()))
+                        tholeMatrix = np.zeros(
+                            (nmol, natoms_per_res, natoms_per_res)
+                        )  # this assumes that the u_scale term is identical between core-core, shell-shell, and core-shell interactions
+
+                        for sp_i in range(numScreenedPairs):
+                            screened_params = drude.getScreenedPairParameters(sp_i)
+                            prt0_params = drude.getParticleParameters(
+                                screened_params[0]
+                            )
+                            core0 = prt0_params[1]
+                            alpha0 = prt0_params[6].value_in_unit(nanometer**3)
+                            imol = int(core0 / natoms)
+                            prt1_params = drude.getParticleParameters(
+                                screened_params[1]
+                            )
+                            core1 = prt1_params[1]
+                            alpha1 = prt1_params[6].value_in_unit(nanometer**3)
+                            thole = screened_params[2]
+
+                            # ensure indices don't exceed single-residue atom indices
+                            if core0 >= natoms:
+                                core0 = core0 % natoms
+                            if core1 >= natoms:
+                                core1 = core1 % natoms
+
+                            tholeMatrix[imol][core0][core1] = thole / (
+                                alpha0 * alpha1
+                            ) ** (1.0 / 6.0)
+                            tholeMatrix[imol][core1][core0] = thole / (
+                                alpha0 * alpha1
+                            ) ** (1.0 / 6.0)
+
+                        tholeMatrix = list(tholeMatrix)
+                        tholeMatrixMade = True
+                elif numScreenedPairs == 0:
+                    tholeMatrixMade = False
+
+                res_shell_charge.append(drude_charge)
+            else:
+                res_shell_charge.append(0.0)
+                alpha = 0.0 * nanometer**3
+            alpha = alpha.value_in_unit(nanometer**3)
+
+            # update positions for residue
+            res_alpha.append(alpha)
+
+        q_shell.append(res_shell_charge)
+        alphas.append(res_alpha)
+
+    q_shell = jnp.array(q_shell)
+    alphas = jnp.array(alphas)
+
+    _alphas = jnp.where(alphas == 0.0, jnp.inf, alphas)
+    k = jnp.where(alphas == 0.0, 0.0, ONE_4PI_EPS0 * q_shell**2 / _alphas)
+    if tholeMatrixMade:
+        tholes = jnp.array(tholeMatrix)
+        u_scale = (
+            tholes[jnp.newaxis, ...]
+            * jnp.eye(numResidues)[:, :, jnp.newaxis, jnp.newaxis]
+        )
+    else:
+        tholes = jnp.zeros((numResidues, numResidues, numAtoms))
+        u_scale = 0.0  # tholes * jnp.eye(Rij.shape[0])[:,:,jnp.newaxis,jnp.newaxis]
+
+    return k, u_scale

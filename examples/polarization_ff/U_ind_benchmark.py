@@ -38,11 +38,21 @@ def main():
         start_time = time.time()
         for index, row in df.iterrows():
             qcel_mol = row["mol"]
-            qcel_mol.to_file("pyrazine.xyz", dtype="xyz")
             distance = row["Minimum Monomer Separations (A)"] 
             Uind_sapt = row["SAPT0 Induction (kJ/mol)"]
             Ues_sapt = row["SAPT0 Electrostatics (kJ/mol)"]
             Nmer_name = row["N-mer Name"]
+            
+            
+            Uind_md, Udf, Unb, Ues = force_fields.polarization_energy_sample(
+                    qcel_mol, 
+                    pdb_file=pdb_file,
+                    xml_file=ff_file,
+                    residue_file=residue_file,
+                    atom_types_map=atom_types_map,
+                    update_pdb=True,
+                    omm_decomp=True
+            )
             
             simmd = openmm_utils.setup_openmm(
                 pdb_file="tmp.pdb",
@@ -51,17 +61,6 @@ def main():
                 error_tol=1e-16,
                 platform_name="Reference",
             )
-            
-            Uind_md, Udf, Unb, Ues = force_fields.polarization_energy_sample(
-                    qcel_mol, 
-                    pdb_file="tmp.pdb",#pdb_file,
-                    xml_file=ff_file,
-                    residue_file=residue_file,
-                    atom_types_map=atom_types_map,
-                    update_pdb=True,
-                    omm_decomp=True
-            )
-            
 
             Uind_omm, Udf_omm, Unb_omm = openmm_utils.U_ind_omm(simmd, decomp=True)
             
