@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the list of molecules and distance cutoffs
-MOLECULES=("imidazole") #acetic_acid" "imidazole" "pyrazole" "pyrazine") # You can replace this with ("imidazole" "pyrazole" "pyrazine" "acetic_acid")
+MOLECULES=("pyrazine") #imidazole" "acetic_acid" "pyrazole" "pyrazine") # You can replace this with ("imidazole" "pyrazole" "pyrazine" "acetic_acid")
 DISTANCE_CUTOFFS=(12)  # Example values, modify as needed
 
 # Export the molecules list as an environment variable

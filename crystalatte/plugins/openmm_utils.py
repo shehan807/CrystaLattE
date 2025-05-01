@@ -102,6 +102,13 @@ class XmlMD:
                     atype = atom_el.get('type')
                     atomlist.append((aname, atype))
                 self.residues[rname] = atomlist
+        
+        # If more than one residue name is found, raise error
+        if len(self.residues) > 1:
+            raise ValueError(
+                f"Multiple residues found ({list(self.residues.keys())}), "
+                "but only homo-nmers are supported."
+            )
 
         # Parse <NonbondedForce>
         # <Atom type="IM-N0"   charge="0.4939"  sigma="1.00000" epsilon="0.00000"/>
@@ -138,10 +145,6 @@ class XmlMD:
         print(f"Residues:  {len(self.residues)} residue templates parsed")
         print(f"Nonbonded: {len(self.nonbonded_params)} parameter entries")
         print(f"Drude:     {len(self.drude_params)} drude entries")
-        print(f"{self.atom_types}")
-        print(f"{self.residues}")
-        print(f"{self.nonbonded_params}")
-        print(f"{self.drude_params}")
         if self.qcel_mol is not None:
             print("QCElemental Molecule is attached.")
             # e.g., print info about self.qcel_mol
@@ -151,7 +154,6 @@ class XmlMD:
 
         if self.atom_types_map is not None:
             print(f"Custom atom_types_map provided with {len(self.atom_types_map)} entries.")
-            print(f"{self.atom_types_map}")
 
 def _map_mol(mol, _map):
 
@@ -469,7 +471,6 @@ def get_QiQj(simmd):
     and Qi Qj terms can be created w/o OpenMM.
 
     """
-    print(f"%%%%%%%% get_QiQj %%%%%%%%%%%")
     system = simmd.system
     topology = simmd.topology
 
@@ -485,14 +486,17 @@ def get_QiQj(simmd):
     for i, res in enumerate(topology.residues()):
         res_charge = []
         res_shell_charge = []
+        print(f"Setting up charges for {res.name}")
         for atom in res.atoms():
-            print(atom.name)
-            #print(atom.index, atom.name)
+            print(atom.index, atom.name)
             # skip over drude particles
             if atom.index in drude_indices:
+                print(f"*skipped {atom.name}*")
                 continue
             charge, sigma, epsilon = nonbonded.getParticleParameters(atom.index)
+            print(f"q={charge} for ({atom.index},{atom.name})")
             charge = charge.value_in_unit(elementary_charge)
+            print(f"q={charge} for ({atom.index},{atom.name})")
             # assign drude positions for respective parent atoms
             if atom.index in parent_indices:
                 drude_params = drude.getParticleParameters(
@@ -505,6 +509,8 @@ def get_QiQj(simmd):
                 res_shell_charge.append(0.0)
 
             res_charge.append(charge)
+        
+        print(res_charge)
         q_core.append(res_charge)
         q_shell.append(res_shell_charge)
 
@@ -743,6 +749,7 @@ def U_ind_omm(simmd, decomp=False):
         return Uind_omm
 
 def get_QiQj_off(xmlmd):
+    """Obtain core and shell charges."""
 
     # build a look up between drudes and their parents, and vice versa
     drude2parent = {}
@@ -750,23 +757,21 @@ def get_QiQj_off(xmlmd):
     for key, dparam in xmlmd.drude_params.items():
         drude2parent[dparam['drude_type']] = dparam['parent_type']
         parent2drude[dparam['parent_type']] = dparam['drude_type']
-    print(drude2parent)
-    print(parent2drude)
-
+    
     q_core = []
     q_shell = []
     nmols = len(xmlmd.qcel_mol.fragments)
     for i in range(nmols):
         res_charge = [] 
         res_shell_charge = []
-        for atom in xmlmd.atom_types:
-            print(f"atom:{atom}")
+        resname = next(iter(xmlmd.residues))
+        for _, atom in xmlmd.residues[resname]:
             if xmlmd.atom_types[atom]["class"] == "Sh":
-                print(f"atom {atom} is a Drude, continue!")
+                # skip over drude particles
                 continue 
+            # assign drude charges for respective parent atoms
             if atom in parent2drude:
                 drude_atom = parent2drude[atom]
-                print(f"atom {atom} is a parent to atom {drude_atom}")
                 res_shell_charge.append(xmlmd.drude_params[drude_atom]['drude_charge'])
             else: 
                 res_shell_charge.append(0.0)
@@ -785,16 +790,5 @@ def get_QiQj_off(xmlmd):
     Qj_core = q_core[jnp.newaxis, :, jnp.newaxis, :]
 
     return Qi_core, Qi_shell, Qj_core, Qj_shell
-
-
-    # In your original code, Qi_core, etc. are 4D.
-    # We'll just do a placeholder for the final shape:
-    #Qi_core  = np.array(q_core)[..., None]  # shape (natoms, 1), etc.
-    #Qi_shell = np.array(q_shell)[..., None]
-    ## Then replicate as needed for Qj.
-    #Qj_core  = Qi_core.T
-    #Qj_shell = Qi_shell.T
-
-    #return (Qi_core, Qi_shell, Qj_core, Qj_shell)
 
 
