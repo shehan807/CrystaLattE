@@ -36,6 +36,213 @@ AVOGADRO = 6.02214076e23
 EPSILON0 = 1e-6 * 8.8541878128e-12 / (E_CHARGE * E_CHARGE * AVOGADRO)
 ONE_4PI_EPS0 = 1 / (4 * M_PI * EPSILON0)
 
+import xml.etree.ElementTree as ET
+
+class XmlMD:
+    """
+    A single container for all parsed data from an OpenMM-style XML file,
+    plus additional attributes such as a QCElemental Molecule object and
+    a custom mapping from QCEngine/QCElemental to the parsed atom types.
+    """
+
+    def __init__(self, qcel_mol=None, atom_types_map=None):
+        """
+        Initialize the XmlMD object.
+
+        Parameters
+        ----------
+        qcel_mol : Molecule-like object, optional
+            A QCElemental or QCEngine "Molecule" object (or similar).
+        atom_types_map : str, optional
+            A user-defined .csv file mapping from (some QCEngine label) -> 
+            (XML atom type).
+        """
+        # The parsed data from the XML:
+        self.atom_types   = {}
+        self.residues     = {}
+        self.bonds        = []
+        self.nonbonded_params  = {}
+        self.drude_params = {}
+        self.core_atom_types = []
+
+        # Additional attributes:
+        self.qcel_mol         = qcel_mol
+        self.atom_types_map   = pd.read_csv(atom_types_map, names=["From", "To"])
+
+    def _findExclusions(self, bonds, atoms, drudes, maxSeparation=4):
+        """
+        Identify pairs of atoms in the same molecule separated by no more than
+        `maxSeparation` bonds. Adapted from OpenMM forcefield.py's _findExclusions().
+        - `bonds` and `atoms` contain atom type name's, i.e., str type
+        """
+
+        # map each atom type string -> integer index
+        type2idx = {t: i for i, t in enumerate(atoms)}
+        numAtoms = len(atoms)
+
+        # convert your bond list ("atomTypeA", "atomTypeB") into (idx, idx)
+        bondIndices = []
+        for a, b in bonds:
+            i = type2idx[a]
+            j = type2idx[b]
+            bondIndices.append((i, j))
+
+        # verbatim logic from OpenMM's forcefield.py
+        bondedTo = [set() for i in range(numAtoms)]
+        for i, j in bondIndices:
+            bondedTo[i].add(j)
+            bondedTo[j].add(i)
+        # Identify all neighbors of each atom with each separation.
+        bondedWithSeparation = [bondedTo]
+        for i in range(maxSeparation-1):
+            lastBonds = bondedWithSeparation[-1]
+            newBonds = deepcopy(lastBonds)
+            for atom in range(numAtoms):
+                for a1 in lastBonds[atom]:
+                    for a2 in bondedTo[a1]:
+                        newBonds[atom].add(a2)
+            bondedWithSeparation.append(newBonds)
+
+        # Build the list of pairs with the actual separation
+        pairs = []
+        for atom in range(numAtoms):
+            for otherAtom in bondedWithSeparation[-1][atom]:
+                if otherAtom > atom:
+                    # Determine the minimum number of bonds between them
+                    sep = maxSeparation
+                    for i in reversed(range(maxSeparation-1)):
+                        if otherAtom in bondedWithSeparation[i][atom]:
+                            sep -= 1
+                        else:
+                            break
+                    # Convert back to atom type strings
+                    try:
+                        drudeA = self.parent2drude[atoms[atom]]
+                        drudeB = self.parent2drude[atoms[otherAtom]]
+                    except KeyError:
+                        # skip over atoms which don't have drudes (e.g., H atoms)
+                        continue
+                    thole = drudes[drudeA]['thole'] + drudes[drudeB]['thole']
+                    screenedPair = (atom, otherAtom, thole)
+                    pairs.append(screenedPair)
+
+        return pairs
+    
+    def _drude_maps(self, drude_params):
+        self.drude2parent = {}
+        self.parent2drude = {}
+        for key, dparam in drude_params.items():
+            self.drude2parent[dparam['drude_type']] = dparam['parent_type']
+            self.parent2drude[dparam['parent_type']] = dparam['drude_type']
+    
+    def parse_xml(self, xml_file):
+        """Populate this XmlMD object by parsing an OpenMM-style XML file."""
+        tree = ET.parse(xml_file)
+        root = tree.getroot()
+
+        # Parse <AtomTypes>
+        # <Type name="IM-N0"   class="NI0"  element="N" mass="13.6067"/>
+        # <Type name="IM-DN0"  class="Sh"               mass="0"/>
+        atomtypes_section = root.find('AtomTypes')
+        if atomtypes_section is not None:
+            for type_el in atomtypes_section.findall('Type'):
+                name    = type_el.get('name')
+                aclass  = type_el.get('class')
+                elem    = type_el.get('element', '') # Drudes have no element
+                mass = float(type_el.get('mass'))
+                self.atom_types[name] = {
+                    'class': aclass,
+                    'element': elem,
+                    'mass': mass
+                }
+
+        # Parse <Residues>
+        # <Atom name="N00"  type="IM-N00"/>
+        # NOTE: for OpenMM reproducibility, indicies are based on Residue topology!
+        residues_section = root.find('Residues')
+        if residues_section is not None:
+            for residue_el in residues_section.findall('Residue'):
+                rname = residue_el.get('name')
+                atomlist = []
+                for atom_el in residue_el.findall('Atom'):
+                    aname = atom_el.get('name')
+                    atype = atom_el.get('type')
+                    atomlist.append((aname, atype))
+                self.residues[rname] = atomlist
+                
+                # Parse Bond Topology
+                # <Bond from="7"  to="6"/>
+                for bond_el in residue_el.findall('Bond'):
+                    b_from = int(bond_el.get('from'))
+                    b_to   = int(bond_el.get('to'))
+
+                    #self.bonds.append(Bond(b_from, b_to))
+                    #self.bonds.append((bond_el.attrib['from'], bond_el.attrib['to']))
+                    self.bonds.append((atomlist[b_from][1],atomlist[b_to][1]))
+
+        # If more than one residue name is found, raise error
+        if len(self.residues) > 1:
+            raise ValueError(
+                f"Multiple residues found ({list(self.residues.keys())}), "
+                "but only homo-nmers are supported."
+            )
+        
+        # Parse <NonbondedForce>
+        # <Atom type="IM-N0"   charge="0.4939"  sigma="1.00000" epsilon="0.00000"/>
+        nb_section = root.find('NonbondedForce')
+        if nb_section is not None:
+            for atom_el in nb_section.findall('Atom'):
+                tname = atom_el.get('type')
+                q     = float(atom_el.get('charge'))
+                sig   = float(atom_el.get('sigma'))
+                eps   = float(atom_el.get('epsilon'))
+                self.nonbonded_params[tname] = (q, sig, eps)
+
+        # Parse <DrudeForce>
+        # <Particle type1="IM-DC21" type2="IM-C21" charge="-1.1478" polarizability="0.00195233" thole="1"/>
+        drude_section = root.find('DrudeForce')
+        if drude_section is not None:
+            for part_el in drude_section.findall('Particle'):
+                dtype = part_el.get('type1')
+                ptype = part_el.get('type2')
+                dq    = float(part_el.get('charge'))
+                alpha = float(part_el.get('polarizability'))
+                thole = float(part_el.get('thole'))
+                self.drude_params[dtype] = {
+                    'drude_type': dtype,
+                    'parent_type': ptype,
+                    'drude_charge': dq,
+                    'polarizability': alpha,
+                    'thole': thole
+                }
+        self.core_atom_types = [atype for aname, atype in self.residues[rname] if atype not in self.drude_params]
+        self._drude_maps(drude_params=self.drude_params)
+        self.screenedPairs = self._findExclusions(
+            bonds=self.bonds,
+            atoms=self.core_atom_types,
+            drudes=self.drude_params,
+        )
+
+    def summary(self):
+        """A demo method to show what's been parsed."""
+        print(f"AtomTypes: {len(self.atom_types)} types parsed")
+        print(f"All Atom Types: {self.atom_types}")
+        print(f"Core Atom Types: {self.core_atom_types}")
+        print(f"Residues:  {len(self.residues)} residue templates parsed")
+        print(f"Bonds: {self.bonds}")
+        print(f"Nonbonded: {len(self.nonbonded_params)} parameter entries")
+        print(f"Drude:     {len(self.drude_params)} drude entries")
+        print(f"Screened Pairs: {len(self.screenedPairs)}\n{self.screenedPairs}")
+        if self.qcel_mol is not None:
+            print("QCElemental Molecule is attached.")
+            # e.g., print info about self.qcel_mol
+            print(f"  Molecule name: {getattr(self.qcel_mol, 'name', '???')}")
+            print(f"  Number of molecules: {len(self.qcel_mol.fragments)}")
+            print(f"  Number of atoms: {len(self.qcel_mol.symbols)}")
+
+        if self.atom_types_map is not None:
+            print(f"Custom atom_types_map provided with {len(self.atom_types_map)} entries.")
+
 def _map_mol(mol, _map):
 
     atom_types = pd.read_csv(_map, names=["From", "To"])
