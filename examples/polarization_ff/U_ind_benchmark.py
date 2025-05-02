@@ -38,6 +38,7 @@ def main():
         start_time = time.time()
         for index, row in df.iterrows():
             qcel_mol = row["mol"]
+            qcel_mol.to_file("acetic_acid.xyz", dtype="xyz")
             distance = row["Minimum Monomer Separations (A)"] 
             Uind_sapt = row["SAPT0 Induction (kJ/mol)"]
             Ues_sapt = row["SAPT0 Electrostatics (kJ/mol)"]
@@ -78,7 +79,7 @@ def main():
                 "Unb_omm":Unb_omm,
             })
             print(f"(Ues_sapt, Ues, Uind_sapt, Uind_md, Uind_omm, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt},{Uind_md},{Uind_omm},{distance})")
-            break
+            #break
         end_time = time.time()
         results_df = pd.DataFrame(results)
         results_df['time_per_system'] = (end_time - start_time) / len(results)

@@ -386,7 +386,7 @@ def polarization_energy_sample(qcel_mol, **kwargs):
    
     xmlmd = XmlMD(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
     xmlmd.parse_xml(xml_file)
-    xmlmd.summary()
+    #xmlmd.summary()
 
     if kwargs.get("update_pdb") is not None and kwargs.get("update_pdb"):
         Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map, pdb_template=pdb_file)
@@ -399,10 +399,10 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     
 
     Qi_core_off, Qi_shell_off, Qj_core_off, Qj_shell_off = openmm_utils.get_QiQj_off(xmlmd) 
-    k_off, u_scale_off = openmm_utils.get_pol_params(simmd)
+    k_off, u_scale_off = openmm_utils.get_pol_params_off(xmlmd)
     
-    print(f"k:{k}\nk_off:{k_off}")
-    print(f"u_scale:{u_scale}\nu_scale_off:{u_scale_off}")
+    #print(f"k:{k}\nk_off:{k_off}")
+    #print(f"u_scale:{u_scale}\nu_scale_off:{u_scale_off}")
 
     assert np.array_equal(Qi_core, Qi_core_off)
     assert np.array_equal(Qi_shell, Qi_shell_off)

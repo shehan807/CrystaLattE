@@ -81,9 +81,7 @@ class XmlMD:
 
         # map each atom type string -> integer index
         type2idx = {t: i for i, t in enumerate(atoms)}
-        print(type2idx)
         numAtoms = len(atoms)
-        print(f"numAtoms: {numAtoms}")
 
         # convert your bond list ("atomTypeA", "atomTypeB") into (idx, idx)
         bondIndices = []
@@ -91,14 +89,12 @@ class XmlMD:
             i = type2idx[a]
             j = type2idx[b]
             bondIndices.append((i, j))
-        print(bondIndices) 
 
         # verbatim logic from OpenMM's forcefield.py
         bondedTo = [set() for i in range(numAtoms)]
         for i, j in bondIndices:
             bondedTo[i].add(j)
             bondedTo[j].add(i)
-        print(bondedTo)
         # Identify all neighbors of each atom with each separation.
         bondedWithSeparation = [bondedTo]
         for i in range(maxSeparation-1):
@@ -109,7 +105,6 @@ class XmlMD:
                     for a2 in bondedTo[a1]:
                         newBonds[atom].add(a2)
             bondedWithSeparation.append(newBonds)
-        print(bondedWithSeparation) 
 
         # Build the list of pairs with the actual separation
         pairs = []
@@ -132,10 +127,8 @@ class XmlMD:
                         continue
                     thole = drudes[drudeA]['thole'] + drudes[drudeB]['thole']
                     screenedPair = (atom, otherAtom, thole)
-                    print(screenedPair)
                     pairs.append(screenedPair)
 
-        print(pairs)
         return pairs
     
     def _drude_maps(self, drude_params):
@@ -663,19 +656,16 @@ def get_pol_params(simmd):
     numResidues = len(list(topology.residues()))
 
     for i, res in enumerate(topology.residues()):
-        print(f"Pol Params for {res.name}")
         res_shell_charge = []
         res_alpha = []
         numAtoms = len(list(res.atoms()))
         for atom in res.atoms():
-            print(f"atom ({atom.index}, {atom.name})")
             # assign drude positions for respective parent atoms
             if atom.index in drude_indices:
                 continue
             charge, sigma, epsilon = nonbonded.getParticleParameters(atom.index)
             charge = charge.value_in_unit(elementary_charge)
             if atom.index in parent_indices:
-                print(f"atom {atom.name} is parent")
                 # map parent index to drude index
                 drude_params = drude.getParticleParameters(
                     parent_indices.index(atom.index)
@@ -683,7 +673,6 @@ def get_pol_params(simmd):
                 drude_charge = drude_params[5].value_in_unit(elementary_charge)
                 alpha = drude_params[6]
                 numScreenedPairs = drude.getNumScreenedPairs()
-                print(f"numScreenedPairs: {numScreenedPairs}")
                 if numScreenedPairs > 0:
                     if not tholeMatrixMade:
                         natoms_per_res = int(
@@ -711,7 +700,6 @@ def get_pol_params(simmd):
                             core1 = prt1_params[1]
                             alpha1 = prt1_params[6].value_in_unit(nanometer**3)
                             thole = screened_params[2]
-                            print(f"({core0},{core1}, {thole})")
                             # ensure indices don't exceed single-residue atom indices
                             if core0 >= natoms:
                                 core0 = core0 % natoms
@@ -854,13 +842,6 @@ def U_ind_omm(simmd, decomp=False):
 def get_QiQj_off(xmlmd):
     """Obtain core and shell charges."""
 
-    # build a look up between drudes and their parents, and vice versa
-    drude2parent = {}
-    parent2drude = {}
-    for key, dparam in xmlmd.drude_params.items():
-        drude2parent[dparam['drude_type']] = dparam['parent_type']
-        parent2drude[dparam['parent_type']] = dparam['drude_type']
-    
     q_core = []
     q_shell = []
     nmols = len(xmlmd.qcel_mol.fragments)
@@ -873,8 +854,8 @@ def get_QiQj_off(xmlmd):
                 # skip over drude particles
                 continue 
             # assign drude charges for respective parent atoms
-            if atom in parent2drude:
-                drude_atom = parent2drude[atom]
+            if atom in xmlmd.parent2drude:
+                drude_atom = xmlmd.parent2drude[atom]
                 res_shell_charge.append(xmlmd.drude_params[drude_atom]['drude_charge'])
             else: 
                 res_shell_charge.append(0.0)
@@ -906,130 +887,70 @@ def get_pol_params_off(xmlmd):
     where "a" is the Thole damping constant.
     """
     
-
-    #############################################################################
-    # build a look up between drudes and their parents, and vice versa
-    drude2parent = {}
-    parent2drude = {}
-    for key, dparam in xmlmd.drude_params.items():
-        drude2parent[dparam['drude_type']] = dparam['parent_type']
-        parent2drude[dparam['parent_type']] = dparam['drude_type']
-    
-    q_core = []
+    # initialize polarizable parameters 
+    alphas = []
     q_shell = []
     nmols = len(xmlmd.qcel_mol.fragments)
+    # assume `u_scale` is identical between core-core, shell-shell, and core-shell terms
+    tholeMatrix = np.zeros(
+            (nmols, len(xmlmd.core_atom_types), len(xmlmd.core_atom_types))
+            )
+
+    # create *ONLY* intra-molecular screening terms for every molecule
     for i in range(nmols):
-        res_charge = [] 
-        res_shell_charge = []
-        resname = next(iter(xmlmd.residues))
-        for _, atom in xmlmd.residues[resname]:
+        tholeMatrixMade = False # only create tholeMatrix for each molecule once
+        mol_q_shell = []
+        mol_alpha = []
+        resname = next(iter(xmlmd.residues)) # NOTE: there should only be one residue
+        for _, atom in xmlmd.residues[resname]: 
             if xmlmd.atom_types[atom]["class"] == "Sh":
-                # skip over drude particles
+                # skip over drude particles 
                 continue 
-            # assign drude charges for respective parent atoms
-            if atom in parent2drude:
-                drude_atom = parent2drude[atom]
-                res_shell_charge.append(xmlmd.drude_params[drude_atom]['drude_charge'])
-            else: 
-                res_shell_charge.append(0.0)
-            q, _, _ = xmlmd.nonbonded_params[atom]
-            res_charge.append(q)
-    ###############################################################################
+            if atom in xmlmd.parent2drude: # or in xmlmd.core_atom_types
+                drude_charge = xmlmd.drude_params[xmlmd.parent2drude[atom]]["drude_charge"]
+                alpha = xmlmd.drude_params[xmlmd.parent2drude[atom]]["polarizability"]
+                if len(xmlmd.screenedPairs) > 0 and not tholeMatrixMade: 
+                    for j, sp in enumerate(xmlmd.screenedPairs):
+                        drudei = xmlmd.parent2drude[xmlmd.core_atom_types[sp[0]]]
+                        drudej = xmlmd.parent2drude[xmlmd.core_atom_types[sp[1]]]
+                        
+                        alphai = xmlmd.drude_params[drudei]["polarizability"]
+                        alphaj = xmlmd.drude_params[drudej]["polarizability"]
+                        
+                        thole = sp[2]
 
-    q_shell = []
-    alphas = []
-    tholes = []
-    tholeMatrixMade = False
-    numResidues = len(list(topology.residues()))
-
-    for i, res in enumerate(topology.residues()):
-        res_shell_charge = []
-        res_alpha = []
-        numAtoms = len(list(res.atoms()))
-        for atom in res.atoms():
-            # assign drude positions for respective parent atoms
-            if atom.index in drude_indices:
-                continue
-            charge, sigma, epsilon = nonbonded.getParticleParameters(atom.index)
-            charge = charge.value_in_unit(elementary_charge)
-            if atom.index in parent_indices:
-                # map parent index to drude index
-                drude_params = drude.getParticleParameters(
-                    parent_indices.index(atom.index)
-                )
-                drude_charge = drude_params[5].value_in_unit(elementary_charge)
-                alpha = drude_params[6]
-                numScreenedPairs = drude.getNumScreenedPairs()
-                if numScreenedPairs > 0:
-                    if not tholeMatrixMade:
-                        natoms_per_res = int(
-                            (topology.getNumAtoms() - len(drude_indices))
-                            / topology.getNumResidues()
-                        )
-                        natoms = len(list(res.atoms()))
-                        nmol = len(list(topology.residues()))
-                        tholeMatrix = np.zeros(
-                            (nmol, natoms_per_res, natoms_per_res)
-                        )  # this assumes that the u_scale term is identical between core-core, shell-shell, and core-shell interactions
-
-                        for sp_i in range(numScreenedPairs):
-                            screened_params = drude.getScreenedPairParameters(sp_i)
-                            prt0_params = drude.getParticleParameters(
-                                screened_params[0]
-                            )
-                            core0 = prt0_params[1]
-                            alpha0 = prt0_params[6].value_in_unit(nanometer**3)
-                            imol = int(core0 / natoms)
-                            prt1_params = drude.getParticleParameters(
-                                screened_params[1]
-                            )
-                            core1 = prt1_params[1]
-                            alpha1 = prt1_params[6].value_in_unit(nanometer**3)
-                            thole = screened_params[2]
-
-                            # ensure indices don't exceed single-residue atom indices
-                            if core0 >= natoms:
-                                core0 = core0 % natoms
-                            if core1 >= natoms:
-                                core1 = core1 % natoms
-
-                            tholeMatrix[imol][core0][core1] = thole / (
-                                alpha0 * alpha1
-                            ) ** (1.0 / 6.0)
-                            tholeMatrix[imol][core1][core0] = thole / (
-                                alpha0 * alpha1
-                            ) ** (1.0 / 6.0)
-
-                        tholeMatrix = list(tholeMatrix)
-                        tholeMatrixMade = True
-                elif numScreenedPairs == 0:
-                    tholeMatrixMade = False
-
-                res_shell_charge.append(drude_charge)
+                        tholeMatrix[i][sp[0]][sp[1]] = thole / (
+                                alphai * alphaj
+                        ) ** (1.0 / 6.0)
+                        tholeMatrix[i][sp[1]][sp[0]] = thole / (
+                                alphai * alphaj
+                        ) ** (1.0 / 6.0)
+                    # only need to explore thole once per molecule 
+                    tholeMatrixMade = True
+                else:
+                    if len(xmlmd.screenedPairs) == 0:
+                        print(f"No screenedPairs found!!!")
+                mol_q_shell.append(drude_charge)
             else:
-                res_shell_charge.append(0.0)
-                alpha = 0.0 * nanometer**3
-            alpha = alpha.value_in_unit(nanometer**3)
-
-            # update positions for residue
-            res_alpha.append(alpha)
-
-        q_shell.append(res_shell_charge)
-        alphas.append(res_alpha)
-
+                mol_q_shell.append(0.0)
+                alpha = 0.0
+            mol_alpha.append(alpha)
+        q_shell.append(mol_q_shell)
+        alphas.append(mol_alpha)
+   
     q_shell = jnp.array(q_shell)
     alphas = jnp.array(alphas)
-
     _alphas = jnp.where(alphas == 0.0, jnp.inf, alphas)
     k = jnp.where(alphas == 0.0, 0.0, ONE_4PI_EPS0 * q_shell**2 / _alphas)
+
     if tholeMatrixMade:
         tholes = jnp.array(tholeMatrix)
         u_scale = (
             tholes[jnp.newaxis, ...]
-            * jnp.eye(numResidues)[:, :, jnp.newaxis, jnp.newaxis]
+            * jnp.eye(nmols)[:, :, jnp.newaxis, jnp.newaxis]
         )
-    else:
-        tholes = jnp.zeros((numResidues, numResidues, numAtoms))
+    else: # e.g., H2O 
+        tholes = jnp.zeros((nmols, nmols, len(xmlmd.core_atom_types)))
         u_scale = 0.0  # tholes * jnp.eye(Rij.shape[0])[:,:,jnp.newaxis,jnp.newaxis]
 
     return k, u_scale
