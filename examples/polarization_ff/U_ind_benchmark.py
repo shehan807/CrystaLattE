@@ -1,5 +1,5 @@
 import crystalatte
-from crystalatte.plugins import openmm_utils, force_fields
+from crystalatte.plugins import force_fields
 import os
 import pandas as pd
 import time 
@@ -24,15 +24,6 @@ def main():
         atom_types_map = os.path.join(molecule, molecule + "_map.csv")
         output_csv     = os.path.join(molecule, molecule + ".csv") 
         
-        # U_ind based on pdb-fed positions (deprecated, left for demonstration)
-        # Uind_dummy = force_fields.openmm_inputs_polarization_energy(
-        #         pdb_file=pdb_file,
-        #         xml_file=ff_file,
-        #         residue_file=residue_file,
-        # )
-        # print(f"Uind_openmm for {pdb_file} = {Uind_dummy}.")
-        # print(f"openmm_inputs_polarization_energy works!")
-
         df = pd.read_pickle(pkl_file)
         results = []        
         start_time = time.time()
@@ -47,22 +38,10 @@ def main():
                     qcel_mol, 
                     pdb_file=pdb_file,
                     xml_file=ff_file,
-                    residue_file=residue_file,
                     atom_types_map=atom_types_map,
-                    update_pdb=True,
                     omm_decomp=True
             )
-            
-            simmd = openmm_utils.setup_openmm(
-                pdb_file="tmp.pdb",
-                ff_file=ff_file,
-                residue_file=residue_file,
-                error_tol=1e-16,
-                platform_name="Reference",
-            )
 
-            Uind_omm, Udf_omm, Unb_omm = openmm_utils.U_ind_omm(simmd, decomp=True)
-            
             results.append({
                 "distance": distance,
                 "nmer_name": Nmer_name,
@@ -72,11 +51,8 @@ def main():
                 "Ues": Unb,
                 "Uind_sapt": Uind_sapt,
                 "Ues_sapt": Ues_sapt,
-                "Uind_omm":Uind_omm,
-                "Udf_omm":Udf_omm,
-                "Unb_omm":Unb_omm,
             })
-            print(f"(Ues_sapt, Ues, Uind_sapt, Uind_md, Uind_omm, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt},{Uind_md},{Uind_omm},{distance})")
+            print(f"(Ues_sapt, Ues, Uind_sapt, Uind, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt}, {Uind_md}, {distance})")
         end_time = time.time()
         results_df = pd.DataFrame(results)
         results_df['time_per_system'] = (end_time - start_time) / len(results)

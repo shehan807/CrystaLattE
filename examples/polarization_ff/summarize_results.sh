@@ -29,29 +29,5 @@ for molecule in "${MOLECULES[@]}"; do
             --chemical_accuracy_kj 1e-6 \
             --distance_cutoff $cutoff\
 	    --image ${molecule}_mol.png -es
-	# JAX vs. OpenMM 
-        python plot_U_ind_comp.py \
-            --input_csv ${molecule}/${molecule}.csv \
-            --output_png results/${molecule}_verification_cutoff_${cutoff}.png \
-            --chemical_accuracy_kj 1e-6 \
-            --distance_cutoff $cutoff -v
-	# JAX vs. OpenMM (DrudeForce)
-        python plot_U_ind_comp.py \
-            --input_csv ${molecule}/${molecule}.csv \
-            --output_png results/${molecule}_verification_cutoff_${cutoff}_df.png \
-            --chemical_accuracy_kj 1e-6 \
-            --distance_cutoff $cutoff -df
-	# JAX vs. OpenMM (Nonbonded)
-        python plot_U_ind_comp.py \
-            --input_csv ${molecule}/${molecule}.csv \
-            --output_png results/${molecule}_verification_cutoff_${cutoff}_nb.png \
-            --chemical_accuracy_kj 1e-6 \
-            --distance_cutoff $cutoff -nb
-	# OpenMM vs. SAPT
-        python plot_U_ind_comp.py \
-            --input_csv ${molecule}/${molecule}.csv \
-            --output_png results/${molecule}_omm_validation_cutoff_${cutoff}.png \
-            --chemical_accuracy_kj 1e-6 \
-            --distance_cutoff $cutoff -omm
     done
 done

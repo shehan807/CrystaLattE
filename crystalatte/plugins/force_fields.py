@@ -1,4 +1,4 @@
-from . import openmm_utils
+from . import utils
 from optax import safe_norm
 from jaxopt import NonlinearCG
 import jax.numpy as jnp
@@ -15,7 +15,7 @@ import sys
 sys.path.append(".")
 
 
-ONE_4PI_EPS0 = openmm_utils.ONE_4PI_EPS0
+ONE_4PI_EPS0 = utils.ONE_4PI_EPS0
 
 
 @jit
@@ -59,7 +59,7 @@ def make_Sij(Rij, u_scale):
     
     where:
     - R_ij is the distance matrix between sites i and j
-    - u_scale is the screening parameter (units: 1/distance) (See openmm_utils.get_pol_params)
+    - u_scale is the screening parameter (units: 1/distance) (See utils.get_pol_params)
     
     u_scale = a / (alpha_i * alpha_j)^(1/6),
 
@@ -317,39 +317,6 @@ def drudeOpt(
         pass
     return d_opt
 
-
-def openmm_inputs_polarization_energy(
-    pdb_file,
-    xml_file,
-    residue_file,
-):
-    jax.config.update("jax_enable_x64", True)
-    simmd = openmm_utils.setup_openmm(
-                pdb_file=pdb_file,
-                ff_file=xml_file,
-                residue_file=residue_file,
-    )
-    
-    Uind_openmm = openmm_utils.U_ind_omm(simmd)
-
-    Rij, Dij = openmm_utils.get_Rij_Dij(simmd=simmd)
-    Qi_core, Qi_shell, Qj_core, Qj_shell = openmm_utils.get_QiQj(simmd)
-    k, u_scale = openmm_utils.get_pol_params(simmd)
-    Dij = drudeOpt(
-        Rij,
-        jnp.ravel(Dij),
-        Qi_shell,
-        Qj_shell,
-        Qi_core,
-        Qj_core,
-        u_scale,
-        k,
-    )
-    U_ind = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
-    print(f"U_ind (OpenMM): {Uind_openmm}\nU_ind (JAX): {U_ind}") 
-    return U_ind
-
-
 def polarization_energy(R_core, Z_core, atom_types):
     # TODO: assign atom_types here, form R=r_core (NxM_{molecule}x3), r_shell starts as all heavy
     # atoms from R, NxM_{molecules}x3, positions zero for hydrogens
@@ -372,25 +339,16 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     pdb_file = kwargs.get("pdb_file", None)
     xml_file = kwargs.get("xml_file", None)
     atom_types_map = kwargs.get("atom_types_map", None)
-    residue_file = kwargs.get("residue_file", None)
     
     # update pdb_file with correct qcel_mol "topology" 
-    pdb_file = openmm_utils._create_topology(qcel_mol, pdb_file, atom_types_map)
-
-    simmd = openmm_utils.setup_openmm(
-                pdb_file=pdb_file,
-                ff_file=xml_file,
-                residue_file=residue_file,
-    )
+    pdb_file = utils._create_topology(qcel_mol, pdb_file, atom_types_map)
     
-    if kwargs.get("update_pdb") is not None and kwargs.get("update_pdb"):
-        Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map, pdb_template=pdb_file)
-    else:
-        Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
+    xmlmd = utils.XmlMD(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
+    xmlmd.parse_xml(xml_file)
 
-    # get_QiQj() and get_pol_params() can, in principle, depend solely on the xml_file 
-    Qi_core, Qi_shell, Qj_core, Qj_shell = openmm_utils.get_QiQj(simmd) 
-    k, u_scale = openmm_utils.get_pol_params(simmd)
+    Rij, Dij = utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
+    Qi_core, Qi_shell, Qj_core, Qj_shell = utils.get_QiQj(xmlmd) 
+    k, u_scale = utils.get_pol_params(xmlmd)
 
     ### These lines should live in polarization_energy_function later on ### 
     
