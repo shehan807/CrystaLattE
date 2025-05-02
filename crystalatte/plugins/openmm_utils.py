@@ -799,6 +799,42 @@ def setup_openmm(
 
     return simmd
 
+def get_QiQj_off(xmlmd):
+    """Obtain core and shell charges."""
+
+    q_core = []
+    q_shell = []
+    nmols = len(xmlmd.qcel_mol.fragments)
+    for i in range(nmols):
+        res_charge = []
+        res_shell_charge = []
+        resname = next(iter(xmlmd.residues))
+        for _, atom in xmlmd.residues[resname]:
+            if xmlmd.atom_types[atom]["class"] == "Sh":
+                # skip over drude particles
+                continue
+            # assign drude charges for respective parent atoms
+            if atom in xmlmd.parent2drude:
+                drude_atom = xmlmd.parent2drude[atom]
+                res_shell_charge.append(xmlmd.drude_params[drude_atom]['drude_charge'])
+            else:
+                res_shell_charge.append(0.0)
+            q, _, _ = xmlmd.nonbonded_params[atom]
+            res_charge.append(q)
+        q_core.append(res_charge)
+        q_shell.append(res_shell_charge)
+
+    q_core = jnp.array(q_core)
+    q_shell = jnp.array(q_shell)
+
+    # break up core-shell, shell-core, and shell-shell terms
+    Qi_shell = q_shell[:, jnp.newaxis, :, jnp.newaxis]
+    Qj_shell = q_shell[jnp.newaxis, :, jnp.newaxis, :]
+    Qi_core = q_core[:, jnp.newaxis, :, jnp.newaxis]
+    Qj_core = q_core[jnp.newaxis, :, jnp.newaxis, :]
+
+    return Qi_core, Qi_shell, Qj_core, Qj_shell
+
 
 def U_ind_omm(simmd, decomp=False):
     # total *static* energy (i.e., while Drudes have zero contribution)
