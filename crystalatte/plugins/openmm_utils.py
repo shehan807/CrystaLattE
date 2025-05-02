@@ -835,6 +835,85 @@ def get_QiQj_off(xmlmd):
 
     return Qi_core, Qi_shell, Qj_core, Qj_shell
 
+def get_pol_params_off(xmlmd):
+    """Obtain spring constants and Thole screening term.
+
+    Spring constants are defined as:
+    k = q_shell^2 / alpha,
+    where alpha are the atomic polarizabilities.
+
+    The Thole screening term (later used to define the screening function, Sij) is:
+    u_scale = a / (alpha_i * alpha_j)^(1/6),
+    where "a" is the Thole damping constant.
+    """
+    
+    # initialize polarizable parameters 
+    alphas = []
+    q_shell = []
+    nmols = len(xmlmd.qcel_mol.fragments)
+    # assume `u_scale` is identical between core-core, shell-shell, and core-shell terms
+    tholeMatrix = np.zeros(
+            (nmols, len(xmlmd.core_atom_types), len(xmlmd.core_atom_types))
+            )
+
+    # create *ONLY* intra-molecular screening terms for every molecule
+    for i in range(nmols):
+        tholeMatrixMade = False # only create tholeMatrix for each molecule once
+        mol_q_shell = []
+        mol_alpha = []
+        resname = next(iter(xmlmd.residues)) # NOTE: there should only be one residue
+        for _, atom in xmlmd.residues[resname]: 
+            if xmlmd.atom_types[atom]["class"] == "Sh":
+                # skip over drude particles 
+                continue 
+            if atom in xmlmd.parent2drude: # or in xmlmd.core_atom_types
+                drude_charge = xmlmd.drude_params[xmlmd.parent2drude[atom]]["drude_charge"]
+                alpha = xmlmd.drude_params[xmlmd.parent2drude[atom]]["polarizability"]
+                if len(xmlmd.screenedPairs) > 0 and not tholeMatrixMade: 
+                    for j, sp in enumerate(xmlmd.screenedPairs):
+                        drudei = xmlmd.parent2drude[xmlmd.core_atom_types[sp[0]]]
+                        drudej = xmlmd.parent2drude[xmlmd.core_atom_types[sp[1]]]
+                        
+                        alphai = xmlmd.drude_params[drudei]["polarizability"]
+                        alphaj = xmlmd.drude_params[drudej]["polarizability"]
+                        
+                        thole = sp[2]
+
+                        tholeMatrix[i][sp[0]][sp[1]] = thole / (
+                                alphai * alphaj
+                        ) ** (1.0 / 6.0)
+                        tholeMatrix[i][sp[1]][sp[0]] = thole / (
+                                alphai * alphaj
+                        ) ** (1.0 / 6.0)
+                    # only need to explore thole once per molecule 
+                    tholeMatrixMade = True
+                else:
+                    if len(xmlmd.screenedPairs) == 0:
+                        print(f"No screenedPairs found!!!")
+                mol_q_shell.append(drude_charge)
+            else:
+                mol_q_shell.append(0.0)
+                alpha = 0.0
+            mol_alpha.append(alpha)
+        q_shell.append(mol_q_shell)
+        alphas.append(mol_alpha)
+   
+    q_shell = jnp.array(q_shell)
+    alphas = jnp.array(alphas)
+    _alphas = jnp.where(alphas == 0.0, jnp.inf, alphas)
+    k = jnp.where(alphas == 0.0, 0.0, ONE_4PI_EPS0 * q_shell**2 / _alphas)
+
+    if tholeMatrixMade:
+        tholes = jnp.array(tholeMatrix)
+        u_scale = (
+            tholes[jnp.newaxis, ...]
+            * jnp.eye(nmols)[:, :, jnp.newaxis, jnp.newaxis]
+        )
+    else: # e.g., H2O 
+        tholes = jnp.zeros((nmols, nmols, len(xmlmd.core_atom_types)))
+        u_scale = 0.0  # tholes * jnp.eye(Rij.shape[0])[:,:,jnp.newaxis,jnp.newaxis]
+
+    return k, u_scale
 
 def U_ind_omm(simmd, decomp=False):
     # total *static* energy (i.e., while Drudes have zero contribution)
