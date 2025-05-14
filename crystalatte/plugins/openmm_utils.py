@@ -7,9 +7,238 @@ from qcelemental import constants
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from MDAnalysis import Universe 
+from MDAnalysis import Universe, AtomGroup
 import xml.etree.ElementTree as ET
-from copy import deepcopy 
+from copy import deepcopy
+import tempfile
+import networkx as nx
+from collections import defaultdict
+import matplotlib.pyplot as plt
+
+def visualize_isomorphism(G1, G2, mapping=None):
+    """
+    Visualize two isomorphic graphs side by side with the mapping highlighted.
+    Args:
+        G1, G2: The two graphs
+        mapping: Dict mapping nodes from G1 to G2 (optional)
+    """
+    if mapping is None:
+        GM = nx.isomorphism.GraphMatcher(G1, G2, 
+                node_match=lambda n1, n2: n1['symbol'] == n2['symbol'])
+        if GM.is_isomorphic():
+            mapping = GM.mapping
+        else:
+            print("Graphs are not isomorphic!")
+            return
+    
+    pos1 = nx.spring_layout(G1, seed=42)
+    pos2 = nx.spring_layout(G2, seed=42)
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+    
+    nx.draw_networkx_edges(G1, pos1, ax=ax1)
+    nx.draw_networkx_labels(G1, pos1, 
+                           labels={n: f"{G1.nodes[n]['symbol']}{n}" for n in G1.nodes()},
+                           font_size=12, ax=ax1)
+    
+    nx.draw_networkx_edges(G2, pos2, ax=ax2)
+    nx.draw_networkx_labels(G2, pos2, 
+                           labels={n: f"{G2.nodes[n]['symbol']}{n}" for n in G2.nodes()},
+                           font_size=12, ax=ax2)
+    
+    # Color-code nodes by their mapping
+    cmap = plt.cm.rainbow
+    colors = cmap(np.linspace(0, 1, len(G1.nodes())))
+    
+    # Draw nodes with mapped colors
+    for i, node1 in enumerate(G1.nodes()):
+        nx.draw_networkx_nodes(G1, pos1, nodelist=[node1], 
+                              node_color=[colors[i]], ax=ax1)
+        node2 = mapping[node1]  # Mapped node in G2
+        nx.draw_networkx_nodes(G2, pos2, nodelist=[node2], 
+                              node_color=[colors[i]], ax=ax2)
+    
+    ax1.set_title("Graph 1")
+    ax2.set_title("Graph 2")
+    ax1.axis('off')
+    ax2.axis('off')
+    plt.tight_layout()
+    plt.show()
+
+def _create_graph(fragment_mol):
+    """Create a NetworkX graph representing the molecular structure."""
+    G = nx.Graph()
+    
+    with tempfile.NamedTemporaryFile(suffix='.xyz', delete=True) as tmp:
+        fragment_mol.to_file(tmp.name, dtype='xyz')
+        u = Universe(tmp.name, format='xyz', to_guess=['bonds'])
+        
+    # Add nodes for each atom with symbol as attribute
+    for i, symbol in enumerate(fragment_mol.symbols):
+        G.add_node(i, symbol=symbol)
+    
+    # Add edges for bonds
+    for bond in u.bonds:
+        i, j = bond.indices
+        G.add_edge(i, j)
+    return G
+
+def _check_isomorphism(G1, G2):
+    """
+    Check if two molecular graphs are isomorphic,
+    considering both structure and atom symbols.
+    
+    Returns:
+        bool: True if isomorphic, False otherwise
+        dict: Node mapping if isomorphic, None otherwise
+    """
+    def node_match(n1, n2):
+        return n1['symbol'] == n2['symbol']
+    result = nx.is_isomorphic(G1, G2, node_match=node_match)
+    if result:
+        GM = nx.isomorphism.GraphMatcher(G1, G2, node_match=node_match)
+        mapping = GM.mapping if GM.is_isomorphic() else None
+        return True, mapping
+    return False, None
+
+def _check_match(G1, G2):
+    """
+    Check if two graphs are exactly equal - same nodes with same indices,
+    same edges, and same node attributes.
+    
+    Returns:
+        bool: True if exactly equal, False otherwise
+    """
+    if set(G1.nodes()) != set(G2.nodes()):
+        return False
+    # e.g., for pyrazine, this fails
+    if set(G1.edges()) != set(G2.edges()):
+        return False
+    # Check if node attributes match
+    for node in G1.nodes():
+        if G1.nodes[node] != G2.nodes[node]:
+            return False
+    return True
+
+def _fix_topological_order(qcel_mol):
+    """
+    Fix topological ordering issues in a QCElemental molecule object with multiple fragments.
+    
+    This function ensures that all fragments in the molecule have the same topological ordering
+    as the first (reference) fragment. It does this by:
+    
+    1. Creating a list of all fragments within the QCElemental molecule 
+    2. Using the first fragment as the reference, obtains bonded information via MDAnalysis
+    3. Uses NetworkX's GraphMatcher to map any subsequent (isomorphic) fragments to the reference 
+ 
+    Parameters
+    ----------
+    qcel_mol : qcelemental.models.Molecule
+        QCElemental molecule object with one or more fragments
+        
+    Returns
+    -------
+    qcel_mol : qcelemental.models.Molecule
+        QCElemental molecule with consistent topological ordering across all fragments
+    """
+    if not hasattr(qcel_mol, 'fragments') or len(qcel_mol.fragments) <= 1:
+        print('no fragments found')
+        return qcel_mol
+    
+    # Create the reference graph from the first fragment
+    reference_mol = qcel_mol.get_fragment(0)
+    reference_graph = _create_graph(reference_mol)
+    ref_symbols = reference_mol.symbols
+   	 
+    # Track if any reordering was needed
+    topology_fixed = False
+    
+    reordered_fragments = []
+    reordered_fragments.append(reference_mol)  # First fragment is the reference
+    
+    for i in range(1, len(qcel_mol.fragments)):
+        current_mol = qcel_mol.get_fragment(i)
+        current_graph = _create_graph(current_mol)
+        
+        # First check if the number of bonds is different - this is a more serious issue
+        if len(reference_graph.edges) != len(current_graph.edges):
+            error_msg = f"Bond count mismatch for fragment {i}.\n"
+            error_msg += f"Reference has {len(reference_graph.edges)} bonds, current fragment has {len(current_edges.edges)} bonds.\n"
+            error_msg += "Fragments must have the same number of bonds for topological ordering."
+            raise ValueError(error_msg)
+        
+        isomorphic, mapping = _check_isomorphism(reference_graph, current_graph)
+        match               = _check_match(reference_graph, current_graph)
+        mismatch            = not match
+  
+        if mismatch:
+            if not isomorphic:
+                error_msg = f"Fragment {i} has incompatible bond structure with reference fragment."
+                error_msg += f"Graphs are not isomorphic, so reordering is not possible."
+                raise ValueError(error_msg)
+                
+            reordered_geometry = np.zeros_like(current_mol.geometry)
+            reordered_symbols = []
+            
+            for ref_idx in range(len(reference_mol.symbols)):
+                curr_idx = mapping[ref_idx]  # Get corresponding index in current fragment
+                reordered_geometry[ref_idx] = current_mol.geometry[curr_idx]
+                reordered_symbols.append(current_mol.symbols[curr_idx])
+            
+            # Create a new molecule with reordered geometry
+            reordered_mol = qcel.models.Molecule(
+                symbols=reordered_symbols,
+                geometry=reordered_geometry,
+                name=f"reordered_fragment_{i}",
+            )
+            
+            # Verify the reordering fixed the topology
+            reordered_graph = _create_graph(reordered_mol)
+            if not _check_match(reference_graph, reordered_graph):
+                print("Warning: Reordering did not fix topology mismatch.")
+                # visualize graphs to debug
+                # visualize_isomorphism(reference_graph, reordered_graph)
+            else:
+                print(f"Successfully reordered fragment {i} to match reference topology.")
+                topology_fixed = True
+                print(f"REFERENCE:\nG.N: {reference_graph.nodes}\nG.E: {reference_graph.edges}") 
+                print(f"NEW FRAGMENT {i}:\nG.N: {reordered_graph.nodes}\nG.E: {reordered_graph.edges}") 
+            
+            reordered_fragments.append(reordered_mol)
+        else:
+            # No mismatch, so use the original fragment
+            reordered_fragments.append(current_mol)
+            continue
+            
+    # If no fragments were reordered, return the original molecule
+    if not topology_fixed:
+        print("No topology reordering was needed.")
+        return qcel_mol
+    
+    # Create a new combined molecule with all reordered fragments
+    combined_geoms = np.vstack([frag.geometry for frag in reordered_fragments])
+    combined_symbols = []
+    for frag in reordered_fragments:
+        combined_symbols.extend(frag.symbols)
+        
+    # Create fragments list for the combined molecule
+    fragments = []
+    atom_counter = 0
+    for frag in reordered_fragments:
+        n_atoms = len(frag.symbols)
+        fragments.append(list(range(atom_counter, atom_counter + n_atoms)))
+        atom_counter += n_atoms
+        
+    # Create the fixed molecule with reordered fragments
+    fixed_mol = qcel.models.Molecule(
+        symbols=combined_symbols,
+        geometry=combined_geoms,
+        name=qcel_mol.name if hasattr(qcel_mol, 'name') else "fixed_topology_molecule",
+        fragments=fragments
+    )
+    
+    print("Topology was fixed for one or more fragments.")
+    return fixed_mol
 
 from openmm.vec3 import Vec3
 from openmm.app import (

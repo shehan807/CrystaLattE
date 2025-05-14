@@ -375,6 +375,9 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     atom_types_map = kwargs.get("atom_types_map", None)
     residue_file = kwargs.get("residue_file", None)
     
+    # Fix topological ordering of fragments
+    qcel_mol = openmm_utils._fix_topological_order(qcel_mol)
+    
     # update pdb_file with correct qcel_mol "topology" 
     pdb_file = openmm_utils._create_topology(qcel_mol, pdb_file, atom_types_map)
 
