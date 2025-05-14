@@ -340,6 +340,9 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     xml_file = kwargs.get("xml_file", None)
     atom_types_map = kwargs.get("atom_types_map", None)
     
+    # fix topological issues in QCElemental (if any)
+    qcel_mol = utils._fix_topological_order(qcel_mol)
+ 
     # update pdb_file with correct qcel_mol "topology" 
     pdb_file = utils._create_topology(qcel_mol, pdb_file, atom_types_map)
     
