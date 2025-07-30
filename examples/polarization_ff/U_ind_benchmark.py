@@ -38,11 +38,14 @@ def main():
         start_time = time.time()
         for index, row in df.iterrows():
             qcel_mol = row["mol"]
+            qcel_mol.to_file("acetic_acid.in", dtype="psi4")
+
             distance = row["Minimum Monomer Separations (A)"] 
             Uind_sapt = row["SAPT0 Induction (kJ/mol)"]
             Ues_sapt = row["SAPT0 Electrostatics (kJ/mol)"]
             Nmer_name = row["N-mer Name"]
             
+            #try:
             Uind_md, Udf, Unb, Ues = force_fields.polarization_energy_sample(
                     qcel_mol, 
                     pdb_file=pdb_file,
@@ -52,6 +55,9 @@ def main():
                     update_pdb=True,
                     omm_decomp=True
             )
+            #except ValueError as e:
+            #    print(e)
+            #    pass
             
             simmd = openmm_utils.setup_openmm(
                 pdb_file="tmp.pdb",
@@ -60,23 +66,24 @@ def main():
                 error_tol=1e-16,
                 platform_name="Reference",
             )
-
             Uind_omm, Udf_omm, Unb_omm = openmm_utils.U_ind_omm(simmd, decomp=True)
             
             results.append({
                 "distance": distance,
                 "nmer_name": Nmer_name,
-                "Uind_md": Uind_md,
-                "Udf": Udf,
-                "Unb": Unb,
-                "Ues": Unb,
+                "Uind_md": Uind_omm, #Uind_md,
+                #"Udf": Udf,
+                #"Unb": Unb,
+                "Ues": Unb_omm, #Unb,
                 "Uind_sapt": Uind_sapt,
                 "Ues_sapt": Ues_sapt,
                 "Uind_omm":Uind_omm,
                 "Udf_omm":Udf_omm,
                 "Unb_omm":Unb_omm,
             })
-            print(f"(Ues_sapt, Ues, Uind_sapt, Uind_md, Uind_omm, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt},{Uind_md},{Uind_omm},{distance})")
+            #print(f"(Ues_sapt, Ues, Uind_sapt, Uind_md, Uind_omm, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt},{Uind_md},{Uind_omm},{distance})")
+            print(f"(Ues_sapt, Ues, Uind_sapt, Uind_omm, distance) = ({Ues_sapt}, {Unb_omm}, {Uind_sapt},{Uind_omm},{distance})")
+            #break
         end_time = time.time()
         results_df = pd.DataFrame(results)
         results_df['time_per_system'] = (end_time - start_time) / len(results)

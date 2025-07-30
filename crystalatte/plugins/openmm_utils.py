@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from MDAnalysis import Universe 
+from typing import Union
+
 
 from openmm.vec3 import Vec3
 from openmm.app import (
@@ -18,10 +20,12 @@ from openmm.app import (
     Modeller,
 )
 from openmm import (
+    Context,
     DrudeForce,
     NonbondedForce,
     DrudeSCFIntegrator,
     Platform,
+    VerletIntegrator
 )
 from openmm.unit import (
     elementary_charge,
@@ -35,6 +39,58 @@ E_CHARGE = 1.602176634e-19
 AVOGADRO = 6.02214076e23
 EPSILON0 = 1e-6 * 8.8541878128e-12 / (E_CHARGE * E_CHARGE * AVOGADRO)
 ONE_4PI_EPS0 = 1 / (4 * M_PI * EPSILON0)
+
+def inspect_state(state, system, topology, label="State"):
+    """
+    Comprehensive inspection of an OpenMM state
+    """
+    print(f"\n{'='*60}")
+    print(f"{label} Inspection")
+    print(f"{'='*60}")
+    
+    # Basic energy info
+    if state.getPotentialEnergy() is not None:
+        pe = state.getPotentialEnergy()
+        print(f"Potential Energy: {pe}")
+        print(f"                 {pe.value_in_unit(kilojoules_per_mole)} kJ/mol")
+    
+    # Positions analysis
+    positions = state.getPositions()
+    print(f"\nTotal particles: {len(positions)}")
+    
+    # Analyze particle types
+    num_atoms = topology.getNumAtoms()
+    print(f"Regular atoms: {num_atoms}")
+    print(f"Extra particles: {len(positions) - num_atoms}")
+    
+    # Identify particle types
+    drude_particles = []
+    virtual_sites = []
+    for i in range(len(positions)):
+        if i >= num_atoms:
+            if system.isVirtualSite(i):
+                virtual_sites.append(i)
+            else:
+                drude_particles.append(i)
+    
+    print(f"  - Virtual sites: {len(virtual_sites)}")
+    print(f"  - Drude particles: {len(drude_particles)}")
+    
+    # Check for extreme positions
+    pos_array = np.array([[p.x, p.y, p.z] for p in positions]) * nanometer
+    pos_magnitudes = np.linalg.norm(pos_array.value_in_unit(nanometer), axis=1)
+    
+    print(f"\nPosition statistics:")
+    print(f"  Min distance from origin: {np.min(pos_magnitudes):.3f} nm")
+    print(f"  Max distance from origin: {np.max(pos_magnitudes):.3f} nm")
+    print(f"  Mean distance from origin: {np.mean(pos_magnitudes):.3f} nm")
+    
+    # Check for outliers
+    outliers = np.where(pos_magnitudes > 100)[0]  # Positions > 100 nm from origin
+    if len(outliers) > 0:
+        print(f"\nWARNING: {len(outliers)} particles found > 100 nm from origin!")
+        for idx in outliers[:5]:  # Show first 5
+            print(f"  Particle {idx}: {positions[idx]}")
 
 def _map_mol(mol, _map):
 
@@ -89,7 +145,7 @@ def _map_mol(mol, _map):
     return combined_mol
 
 
-def _create_topology(qcel_mol, old_pdb_path, atom_types_map):
+def _create_topology(qcel_mol, old_pdb_path, atom_types_map, xml_file):
     """Create new topology based on QCElemental "topology"."""
     
     import warnings
@@ -106,6 +162,7 @@ def _create_topology(qcel_mol, old_pdb_path, atom_types_map):
     qcel_mol = _map_mol(qcel_mol, atom_types_map)
     _molecule_to_pdb_file(qcel_mol, tmp_pdb, residue_name, atom_types_map) 
     _add_CONECT(tmp_pdb)
+    _add_vsites(tmp_pdb, xml_file)    
 
     return str(tmp_pdb)
 
@@ -161,6 +218,24 @@ def _add_CONECT(pdb_filename: str) -> None:
 
     with open(pdb_filename, "a") as pdb:
         pdb.write('\n' + '\n'.join(sorted(conect_lines)) + '\n')
+
+def _add_vsites(pdb_filename: Union[str, Path], xml_file: Union[str, Path]) -> None:
+    """Adds vsite information based on xml definition if they exist"""
+    pdb = PDBFile(str(pdb_filename))
+    forcefield = ForceField(xml_file)
+    
+    modeller = Modeller(pdb.topology, pdb.positions)
+    modeller.addExtraParticles(forcefield)
+    
+    # Must compute virtual site positions
+    system = forcefield.createSystem(modeller.topology)
+    context = Context(system, VerletIntegrator(0.001))
+    context.setPositions(modeller.positions)
+    context.computeVirtualSites()
+    
+    positions = context.getState(getPositions=True).getPositions()
+    with open(pdb_filename, 'w') as f:
+        PDBFile.writeFile(modeller.topology, positions, f) 
 
 def get_Dij_omm(simmd):
     system = simmd.system
@@ -264,6 +339,10 @@ def get_Rij_Dij(simmd=None,qcel_mol=None,atom_types_map=None, **kwargs):
 
         # conveniently, r_core = r_shell (i.e., initialize Dij to zero)
         r_core = jnp.array(r_core)
+        # placed here 05/28
+        if kwargs.get("pdb_template") is not None:
+            pdb_template = kwargs.get("pdb_template")
+            r_core_to_pdb(r_core, pdb_template=pdb_template)
         r_shell = jnp.array(r_core)
 
         # broadcast r_core (nmols, natoms, 3) --> Rij (nmols, nmols, natoms, natoms, 3)
@@ -319,10 +398,8 @@ def r_core_to_pdb(r_core, pdb_template, pdb_file="tmp.pdb"):
     """Create updated PDB file with r_core from residue file as template."""
 
     pdb = PDBFile(pdb_template)
-
     # reshape r_core to match total number of atoms
     coords = np.array(r_core).reshape((-1, 3))
-
     # create list of Vec3 positions (default to nm)
     if coords.shape[0] != len(pdb.positions):
         raise ValueError(
@@ -330,7 +407,6 @@ def r_core_to_pdb(r_core, pdb_template, pdb_file="tmp.pdb"):
             f"but r_core has {coords.shape[0]} coords."
         )
     new_positions = [Vec3(*xyz) for xyz in coords] * nanometer
-
     # write the updated PDB
     pdb.positions = new_positions
     with open(pdb_file, "w") as f:
@@ -553,9 +629,8 @@ def setup_openmm(
     <str> residue_file
         .xml for non-standard residue topology
     """
-
     # obtain bond definitions and atom/Drude positions
-    Topology().loadBondDefinitions(residue_file)
+    #Topology().loadBondDefinitions(residue_file)
     integrator = DrudeSCFIntegrator(timestep)
     integrator.setMinimizationErrorTolerance(error_tol)
     if integrator_seed is not None:
@@ -598,8 +673,9 @@ def U_ind_omm(simmd, decomp=False):
     state = simmd.context.getState(
         getEnergy=True, getForces=True, getVelocities=True, getPositions=True
     )
+    inspect_state(state, simmd.system, simmd.topology)
     U_static_omm = state.getPotentialEnergy()
-
+    print(f"U_static_omm: {U_static_omm}")
     # optimize Drude positions
     simmd.step(1)
     state = simmd.context.getState(
@@ -608,6 +684,7 @@ def U_ind_omm(simmd, decomp=False):
 
     # total Nonbonded + Drude (self) energy
     U_tot_omm = state.getPotentialEnergy()
+    print(f"U_tot_omm: {U_tot_omm}")
     Uind_omm = (U_tot_omm - U_static_omm).value_in_unit(kilojoules_per_mole)
     if decomp:
         system = simmd.system
@@ -617,6 +694,7 @@ def U_ind_omm(simmd, decomp=False):
             if 'NonbondedForce' in PE:
                 _NonbondedForce = simmd.context.getState(getEnergy=True, groups=2**j).getPotentialEnergy()
                 _NonbondedForce = _NonbondedForce.value_in_unit(kilojoules_per_mole)
+                print(f"_nonbondedForce: {_NonbondedForce}")
             if 'DrudeForce' in PE:
                 _DrudeForce = simmd.context.getState(getEnergy=True, groups=2**j).getPotentialEnergy()
                 _DrudeForce = _DrudeForce.value_in_unit(kilojoules_per_mole)

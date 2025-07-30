@@ -375,8 +375,8 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     residue_file = kwargs.get("residue_file", None)
     
     # update pdb_file with correct qcel_mol "topology" 
-    pdb_file = openmm_utils._create_topology(qcel_mol, pdb_file, atom_types_map)
-
+    pdb_file = openmm_utils._create_topology(qcel_mol, pdb_file, atom_types_map, xml_file.replace('.xml','-nodrudes.xml'))
+    
     simmd = openmm_utils.setup_openmm(
                 pdb_file=pdb_file,
                 ff_file=xml_file,
@@ -384,7 +384,8 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     )
     
     if kwargs.get("update_pdb") is not None and kwargs.get("update_pdb"):
-        Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map, pdb_template=pdb_file)
+        Rij, Dij = openmm_utils.get_Rij_Dij(simmd=simmd, pdb_template=pdb_file)
+        #Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map, pdb_template=pdb_file)
     else:
         Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
 
