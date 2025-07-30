@@ -306,7 +306,7 @@ def drudeOpt(
     )
 
     start = time.time()
-    solver = NonlinearCG(fun=Uind_min, tol=1e-6)
+    solver = NonlinearCG(fun=Uind_min, tol=1e-8)
     res = solver.run(init_params=Dij0)
     end = time.time()
     d_opt = res.params 

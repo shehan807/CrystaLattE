@@ -1,0 +1,1131 @@
+
+    -----------------------------------------------------------------------
+          Psi4: An Open-Source Ab Initio Electronic Structure Package
+                               Psi4 1.4rc3 
+
+                         Git: Rev {HEAD} 080dba6 
+
+
+    D. G. A. Smith, L. A. Burns, A. C. Simmonett, R. M. Parrish,
+    M. C. Schieber, R. Galvelis, P. Kraus, H. Kruse, R. Di Remigio,
+    A. Alenaizan, A. M. James, S. Lehtola, J. P. Misiewicz, M. Scheurer,
+    R. A. Shaw, J. B. Schriber, Y. Xie, Z. L. Glick, D. A. Sirianni,
+    J. S. O'Brien, J. M. Waldrop, A. Kumar, E. G. Hohenstein,
+    B. P. Pritchard, B. R. Brooks, H. F. Schaefer III, A. Yu. Sokolov,
+    K. Patkowski, A. E. DePrince III, U. Bozkaya, R. A. King,
+    F. A. Evangelista, J. M. Turney, T. D. Crawford, C. D. Sherrill,
+    J. Chem. Phys. 152(18) 184108 (2020). https://doi.org/10.1063/5.0006002
+
+                            Additional Code Authors
+    E. T. Seidl, C. L. Janssen, E. F. Valeev, M. L. Leininger,
+    J. F. Gonthier, R. M. Richard, H. R. McAlexander, M. Saitow, X. Wang,
+    P. Verma, and M. H. Lechner
+
+             Previous Authors, Complete List of Code Contributors,
+                       and Citations for Specific Modules
+    https://github.com/psi4/psi4/blob/master/codemeta.json
+    https://github.com/psi4/psi4/graphs/contributors
+    http://psicode.org/psi4manual/master/introduction.html#citing-psifour
+
+    -----------------------------------------------------------------------
+
+
+    Psi4 started on: Wednesday, 01 September 2021 01:38PM
+
+    Process ID: 19110
+    Host:       ds1
+    PSIDATADIR: /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4
+    Memory:     500.0 MiB
+    Threads:    6
+    
+  ==> Input File <==
+
+--------------------------------------------------------------------------
+# PSI4 file produced by CrystaLattE
+
+# Generated from:               acetic_acid.xyz
+# Psithon input for N-mer:      2mer-0+124
+# Number of atoms per monomer:  [8, 8]
+# Number of replicas:           2
+# COM priority:                 4.205762239654e-05
+# Minimum COM separations:      15.217 
+# Separation priority:          8.864198422712e-05
+# Minimum monomer separations:  11.868 
+# Cutoff priority:              3.952324781206e-06
+# Nuclear repulsion energy:     279.203551065694
+
+memory 7 GB
+
+molecule Dimer_0_124 {
+  O           -5.53102237       2.93940290       1.97762624 
+  O           -2.40708886       0.90817734       0.04905909 
+  H           -0.50304887       1.37579205       4.63880908 
+  H            0.00000000       4.25104285       3.09072238 
+  H           -2.38948215       4.01916779       5.40195041 
+  H           -3.74771411       0.47147930      -1.21557512 
+  C           -1.41859782       2.98500500       3.84405190 
+  C           -3.32263781       2.28628814       1.91221413 
+--
+  O           19.76730551     -16.38351916       7.42863574 
+  O           16.64337200     -18.41474473       5.50006858 
+  H           14.73933201     -17.94713001      10.08981858 
+  H           14.23628314     -15.07187921       8.54173188 
+  H           16.62576529     -15.30375427      10.85295990 
+  H           17.98399725     -18.85144277       4.23543438 
+  C           15.65488096     -16.33791706       9.29506139 
+  C           17.55892095     -17.03663393       7.36322363 
+units = au
+no_com
+no_reorient
+}
+
+set {
+  e_convergence 10
+  d_convergence 10
+  scf_type df
+  mp2_type df
+  cc_type df
+  freeze_core true
+}
+
+energy('sapt0/aug-cc-pvdz')
+
+--------------------------------------------------------------------------
+
+  Memory set to   6.519 GiB by Python driver.
+
+Scratch directory: /scratch/csargent/psi4.17562.33784/
+
+Scratch directory: /scratch/csargent/psi4.17562.33784/
+
+  //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>//
+  //              Dimer HF             //
+  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<//
+
+
+*** tstart() called on ds1
+*** at Wed Sep  1 13:38:05 2021
+
+   => Loading Basis Set <=
+
+    Name: AUG-CC-PVDZ
+    Role: ORBITAL
+    Keyword: BASIS
+    atoms 1-2, 9-10  entry O          line   254 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz.gbs 
+    atoms 3-6, 11-14 entry H          line    40 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz.gbs 
+    atoms 7-8, 15-16 entry C          line   182 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz.gbs 
+
+
+         ---------------------------------------------------------
+                                   SCF
+               by Justin Turney, Rob Parrish, Andy Simmonett
+                          and Daniel G. A. Smith
+                              RHF Reference
+                        6 Threads,   6675 MiB Core
+         ---------------------------------------------------------
+
+  ==> Geometry <==
+
+    Molecular point group: c1
+    Full point group: C1
+
+    Geometry (in Bohr), charge = 0, multiplicity = 1:
+
+       Center              X                  Y                   Z               Mass       
+    ------------   -----------------  -----------------  -----------------  -----------------
+         O           -5.531022370000     2.939402900000     1.977626240000    15.994914619570
+         O           -2.407088860000     0.908177340000     0.049059090000    15.994914619570
+         H           -0.503048870000     1.375792050000     4.638809080000     1.007825032230
+         H            0.000000000000     4.251042850000     3.090722380000     1.007825032230
+         H           -2.389482150000     4.019167790000     5.401950410000     1.007825032230
+         H           -3.747714110000     0.471479300000    -1.215575120000     1.007825032230
+         C           -1.418597820000     2.985005000000     3.844051900000    12.000000000000
+         C           -3.322637810000     2.286288140000     1.912214130000    12.000000000000
+         O           19.767305510000   -16.383519160000     7.428635740000    15.994914619570
+         O           16.643372000000   -18.414744730000     5.500068580000    15.994914619570
+         H           14.739332010000   -17.947130010000    10.089818580000     1.007825032230
+         H           14.236283140000   -15.071879210000     8.541731880000     1.007825032230
+         H           16.625765290000   -15.303754270000    10.852959900000     1.007825032230
+         H           17.983997250000   -18.851442770000     4.235434380000     1.007825032230
+         C           15.654880960000   -16.337917060000     9.295061390000    12.000000000000
+         C           17.558920950000   -17.036633930000     7.363223630000    12.000000000000
+
+  Running in c1 symmetry.
+
+  Rotational constants: A =      0.05784  B =      0.00151  C =      0.00149 [cm^-1]
+  Rotational constants: A =   1733.99394  B =     45.21636  C =     44.55647 [MHz]
+  Nuclear repulsion =  279.203551014486493
+
+  Charge       = 0
+  Multiplicity = 1
+  Electrons    = 64
+  Nalpha       = 32
+  Nbeta        = 32
+
+  ==> Algorithm <==
+
+  SCF Algorithm Type is DF.
+  DIIS enabled.
+  MOM disabled.
+  Fractional occupation disabled.
+  Guess Type is SAD.
+  Energy threshold   = 1.00e-10
+  Density threshold  = 1.00e-10
+  Integral threshold = 1.00e-12
+
+  ==> Primary Basis <==
+
+  Basis Set: AUG-CC-PVDZ
+    Blend: AUG-CC-PVDZ
+    Number of shells: 112
+    Number of basis functions: 256
+    Number of Cartesian functions: 272
+    Spherical Harmonics?: true
+    Max angular momentum: 2
+
+   => Loading Basis Set <=
+
+    Name: (AUG-CC-PVDZ AUX)
+    Role: JKFIT
+    Keyword: DF_BASIS_SCF
+    atoms 1-2, 9-10  entry O          line   270 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-jkfit.gbs 
+    atoms 3-6, 11-14 entry H          line    70 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-jkfit.gbs 
+    atoms 7-8, 15-16 entry C          line   154 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-jkfit.gbs 
+
+  ==> Integral Setup <==
+
+  ==> DiskDFJK: Density-Fitted J/K Matrices <==
+
+    J tasked:                  Yes
+    K tasked:                  Yes
+    wK tasked:                  No
+    OpenMP threads:              6
+    Integrals threads:           6
+    Memory [MiB]:             5006
+    Algorithm:                Core
+    Integral Cache:           SAVE
+    Schwarz Cutoff:          1E-12
+    Fitting Condition:       1E-10
+
+   => Auxiliary Basis Set <=
+
+  Basis Set: (AUG-CC-PVDZ AUX)
+    Blend: AUG-CC-PVDZ-JKFIT
+    Number of shells: 320
+    Number of basis functions: 944
+    Number of Cartesian functions: 1088
+    Spherical Harmonics?: true
+    Max angular momentum: 3
+
+  Minimum eigenvalue in the overlap matrix is 1.0263056460E-04.
+  Reciprocal condition number of the overlap matrix is 9.6402526965E-06.
+    Using symmetric orthogonalization.
+
+  ==> Pre-Iterations <==
+
+  SCF Guess: Superposition of Atomic Densities via on-the-fly atomic UHF (no occupation information).
+
+   -------------------------
+    Irrep   Nso     Nmo    
+   -------------------------
+     A        256     256 
+   -------------------------
+    Total     256     256
+   -------------------------
+
+  ==> Iterations <==
+
+                           Total Energy        Delta E     RMS |[F,P]|
+
+   @DF-RHF iter SAD:  -453.97985885449748   -4.53980e+02   0.00000e+00 
+   @DF-RHF iter   1:  -455.36179430340621   -1.38194e+00   3.22744e-03 DIIS
+   @DF-RHF iter   2:  -455.60179555875214   -2.40001e-01   1.87374e-03 DIIS
+   @DF-RHF iter   3:  -455.68262468931812   -8.08291e-02   3.30433e-04 DIIS
+   @DF-RHF iter   4:  -455.68709895563660   -4.47427e-03   1.46189e-04 DIIS
+   @DF-RHF iter   5:  -455.68806127323916   -9.62318e-04   3.42542e-05 DIIS
+   @DF-RHF iter   6:  -455.68813564286870   -7.43696e-05   1.66620e-05 DIIS
+   @DF-RHF iter   7:  -455.68815523103825   -1.95882e-05   5.43639e-06 DIIS
+   @DF-RHF iter   8:  -455.68815839579770   -3.16476e-06   1.43669e-06 DIIS
+   @DF-RHF iter   9:  -455.68815862915244   -2.33355e-07   3.01049e-07 DIIS
+   @DF-RHF iter  10:  -455.68815863678657   -7.63413e-09   7.93964e-08 DIIS
+   @DF-RHF iter  11:  -455.68815863719311   -4.06544e-10   2.54740e-08 DIIS
+   @DF-RHF iter  12:  -455.68815863723648   -4.33715e-11   6.04181e-09 DIIS
+   @DF-RHF iter  13:  -455.68815863724063   -4.14957e-12   1.32410e-09 DIIS
+   @DF-RHF iter  14:  -455.68815863724024    3.97904e-13   5.92591e-10 DIIS
+   @DF-RHF iter  15:  -455.68815863724058   -3.41061e-13   2.09790e-10 DIIS
+   @DF-RHF iter  16:  -455.68815863724012    4.54747e-13   5.74360e-11 DIIS
+  Energy and wave function converged.
+
+
+  ==> Post-Iterations <==
+
+    Orbital Energies [Eh]
+    ---------------------
+
+    Doubly Occupied:                                                      
+
+       1A    -20.630190     2A    -20.629998     3A    -20.553528  
+       4A    -20.553305     5A    -11.396837     6A    -11.396612  
+       7A    -11.251756     8A    -11.251495     9A     -1.476571  
+      10A     -1.476368    11A     -1.358207    12A     -1.357991  
+      13A     -1.033761    14A     -1.033515    15A     -0.838661  
+      16A     -0.838450    17A     -0.703785    18A     -0.703571  
+      19A     -0.689206    20A     -0.688980    21A     -0.658488  
+      22A     -0.658266    23A     -0.577269    24A     -0.577054  
+      25A     -0.570458    26A     -0.570217    27A     -0.562172  
+      28A     -0.561913    29A     -0.476061    30A     -0.475844  
+      31A     -0.453160    32A     -0.452934  
+
+    Virtual:                                                              
+
+      33A      0.031278    34A      0.031804    35A      0.044761  
+      36A      0.045212    37A      0.053211    38A      0.055411  
+      39A      0.063632    40A      0.064528    41A      0.097981  
+      42A      0.098318    43A      0.116551    44A      0.116834  
+      45A      0.117110    46A      0.117353    47A      0.139831  
+      48A      0.140037    49A      0.150341    50A      0.151840  
+      51A      0.154578    52A      0.157030    53A      0.163582  
+      54A      0.164581    55A      0.170599    56A      0.170879  
+      57A      0.195558    58A      0.195799    59A      0.208456  
+      60A      0.208820    61A      0.232171    62A      0.233240  
+      63A      0.234240    64A      0.234618    65A      0.270086  
+      66A      0.270357    67A      0.289599    68A      0.289806  
+      69A      0.295008    70A      0.295303    71A      0.319130  
+      72A      0.319325    73A      0.322058    74A      0.322293  
+      75A      0.346494    76A      0.346788    77A      0.369931  
+      78A      0.370159    79A      0.378095    80A      0.378346  
+      81A      0.393377    82A      0.393620    83A      0.400406  
+      84A      0.401198    85A      0.425663    86A      0.426416  
+      87A      0.437199    88A      0.437894    89A      0.441371  
+      90A      0.441522    91A      0.474837    92A      0.475052  
+      93A      0.491247    94A      0.492218    95A      0.523990  
+      96A      0.524240    97A      0.536517    98A      0.536770  
+      99A      0.552453   100A      0.553275   101A      0.568979  
+     102A      0.569231   103A      0.582824   104A      0.583514  
+     105A      0.601378   106A      0.601583   107A      0.617491  
+     108A      0.617716   109A      0.639561   110A      0.639787  
+     111A      0.648532   112A      0.648797   113A      0.665941  
+     114A      0.666181   115A      0.683465   116A      0.683708  
+     117A      0.696427   118A      0.696690   119A      0.702793  
+     120A      0.703071   121A      0.732534   122A      0.732773  
+     123A      0.741993   124A      0.742233   125A      0.797683  
+     126A      0.797949   127A      0.852844   128A      0.853070  
+     129A      0.876079   130A      0.876371   131A      0.911676  
+     132A      0.911894   133A      0.948951   134A      0.949179  
+     135A      0.953632   136A      0.953869   137A      0.982407  
+     138A      0.982635   139A      1.040806   140A      1.041039  
+     141A      1.088031   142A      1.088323   143A      1.100859  
+     144A      1.101560   145A      1.117620   146A      1.117853  
+     147A      1.156654   148A      1.157173   149A      1.171413  
+     150A      1.171620   151A      1.175618   152A      1.175851  
+     153A      1.235191   154A      1.235630   155A      1.271421  
+     156A      1.271737   157A      1.318509   158A      1.318729  
+     159A      1.357453   160A      1.357690   161A      1.389652  
+     162A      1.390011   163A      1.411603   164A      1.412048  
+     165A      1.462082   166A      1.462293   167A      1.467264  
+     168A      1.467467   169A      1.545255   170A      1.545498  
+     171A      1.634296   172A      1.634556   173A      1.649171  
+     174A      1.649409   175A      1.714205   176A      1.714763  
+     177A      1.755053   178A      1.755284   179A      1.772115  
+     180A      1.772370   181A      1.847264   182A      1.847583  
+     183A      1.864725   184A      1.865010   185A      1.883029  
+     186A      1.883291   187A      1.965719   188A      1.965935  
+     189A      1.978727   190A      1.978947   191A      2.025510  
+     192A      2.025829   193A      2.036901   194A      2.037146  
+     195A      2.122115   196A      2.122336   197A      2.171300  
+     198A      2.171528   199A      2.192373   200A      2.192643  
+     201A      2.244009   202A      2.244261   203A      2.252884  
+     204A      2.253143   205A      2.271615   206A      2.271849  
+     207A      2.311505   208A      2.311732   209A      2.378833  
+     210A      2.379098   211A      2.429597   212A      2.429817  
+     213A      2.437903   214A      2.438150   215A      2.535548  
+     216A      2.535787   217A      2.622845   218A      2.623075  
+     219A      2.651535   220A      2.651792   221A      2.782927  
+     222A      2.783171   223A      2.832898   224A      2.833132  
+     225A      2.885350   226A      2.885611   227A      2.973544  
+     228A      2.973779   229A      3.000839   230A      3.001089  
+     231A      3.015538   232A      3.015842   233A      3.178016  
+     234A      3.178627   235A      3.345282   236A      3.345746  
+     237A      3.665988   238A      3.666183   239A      3.689707  
+     240A      3.689903   241A      3.735724   242A      3.735928  
+     243A      3.758944   244A      3.759164   245A      3.789605  
+     246A      3.789819   247A      3.804533   248A      3.804752  
+     249A      3.899665   250A      3.899949   251A      4.049649  
+     252A      4.049863   253A      4.141613   254A      4.141854  
+     255A      4.309236   256A      4.309434  
+
+    Final Occupation by Irrep:
+              A 
+    DOCC [    32 ]
+
+  @DF-RHF Final Energy:  -455.68815863724012
+
+   => Energetics <=
+
+    Nuclear Repulsion Energy =            279.2035510144864929
+    One-Electron Energy =               -1176.8701759780587963
+    Two-Electron Energy =                 441.9784663263321818
+    Total Energy =                       -455.6881586372401216
+
+Computation Completed
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the SCF density matrix
+
+  Nuclear Dipole Moment: [e a0]
+     X:   455.5611      Y:  -473.2817      Z:   299.7663
+
+  Electronic Dipole Moment: [e a0]
+     X:  -455.5606      Y:   472.7160      Z:  -299.9330
+
+  Dipole Moment: [e a0]
+     X:     0.0005      Y:    -0.5657      Z:    -0.1667     Total:     0.5898
+
+  Dipole Moment: [D]
+     X:     0.0012      Y:    -1.4379      Z:    -0.4237     Total:     1.4990
+
+
+*** tstop() called on ds1 at Wed Sep  1 13:38:08 2021
+Module time:
+	user time   =      15.25 seconds =       0.25 minutes
+	system time =       0.39 seconds =       0.01 minutes
+	total time  =          3 seconds =       0.05 minutes
+Total time:
+	user time   =      15.25 seconds =       0.25 minutes
+	system time =       0.39 seconds =       0.01 minutes
+	total time  =          3 seconds =       0.05 minutes
+
+  //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>//
+  //            Monomer A HF           //
+  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<//
+
+
+*** tstart() called on ds1
+*** at Wed Sep  1 13:38:08 2021
+
+   => Loading Basis Set <=
+
+    Name: AUG-CC-PVDZ
+    Role: ORBITAL
+    Keyword: BASIS
+    atoms 1-2, 9-10  entry O          line   254 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz.gbs 
+    atoms 3-6, 11-14 entry H          line    40 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz.gbs 
+    atoms 7-8, 15-16 entry C          line   182 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz.gbs 
+
+
+         ---------------------------------------------------------
+                                   SCF
+               by Justin Turney, Rob Parrish, Andy Simmonett
+                          and Daniel G. A. Smith
+                              RHF Reference
+                        6 Threads,   6675 MiB Core
+         ---------------------------------------------------------
+
+  ==> Geometry <==
+
+    Molecular point group: c1
+    Full point group: C1
+
+    Geometry (in Bohr), charge = 0, multiplicity = 1:
+
+       Center              X                  Y                   Z               Mass       
+    ------------   -----------------  -----------------  -----------------  -----------------
+         O           -5.531022370000     2.939402900000     1.977626240000    15.994914619570
+         O           -2.407088860000     0.908177340000     0.049059090000    15.994914619570
+         H           -0.503048870000     1.375792050000     4.638809080000     1.007825032230
+         H            0.000000000000     4.251042850000     3.090722380000     1.007825032230
+         H           -2.389482150000     4.019167790000     5.401950410000     1.007825032230
+         H           -3.747714110000     0.471479300000    -1.215575120000     1.007825032230
+         C           -1.418597820000     2.985005000000     3.844051900000    12.000000000000
+         C           -3.322637810000     2.286288140000     1.912214130000    12.000000000000
+      Gh(O)          19.767305510000   -16.383519160000     7.428635740000    15.994914619570
+      Gh(O)          16.643372000000   -18.414744730000     5.500068580000    15.994914619570
+      Gh(H)          14.739332010000   -17.947130010000    10.089818580000     1.007825032230
+      Gh(H)          14.236283140000   -15.071879210000     8.541731880000     1.007825032230
+      Gh(H)          16.625765290000   -15.303754270000    10.852959900000     1.007825032230
+      Gh(H)          17.983997250000   -18.851442770000     4.235434380000     1.007825032230
+      Gh(C)          15.654880960000   -16.337917060000     9.295061390000    12.000000000000
+      Gh(C)          17.558920950000   -17.036633930000     7.363223630000    12.000000000000
+
+  Running in c1 symmetry.
+
+  Rotational constants: A =      0.05784  B =      0.00151  C =      0.00149 [cm^-1]
+  Rotational constants: A =   1733.99394  B =     45.21636  C =     44.55647 [MHz]
+  Nuclear repulsion =  121.748430210971620
+
+  Charge       = 0
+  Multiplicity = 1
+  Electrons    = 32
+  Nalpha       = 16
+  Nbeta        = 16
+
+  ==> Algorithm <==
+
+  SCF Algorithm Type is DF.
+  DIIS enabled.
+  MOM disabled.
+  Fractional occupation disabled.
+  Guess Type is SAD.
+  Energy threshold   = 1.00e-10
+  Density threshold  = 1.00e-10
+  Integral threshold = 1.00e-12
+
+  ==> Primary Basis <==
+
+  Basis Set: AUG-CC-PVDZ
+    Blend: AUG-CC-PVDZ
+    Number of shells: 112
+    Number of basis functions: 256
+    Number of Cartesian functions: 272
+    Spherical Harmonics?: true
+    Max angular momentum: 2
+
+   => Loading Basis Set <=
+
+    Name: (AUG-CC-PVDZ AUX)
+    Role: JKFIT
+    Keyword: DF_BASIS_SCF
+    atoms 1-2, 9-10  entry O          line   270 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-jkfit.gbs 
+    atoms 3-6, 11-14 entry H          line    70 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-jkfit.gbs 
+    atoms 7-8, 15-16 entry C          line   154 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-jkfit.gbs 
+
+  ==> Integral Setup <==
+
+  ==> DiskDFJK: Density-Fitted J/K Matrices <==
+
+    J tasked:                  Yes
+    K tasked:                  Yes
+    wK tasked:                  No
+    OpenMP threads:              6
+    Integrals threads:           6
+    Memory [MiB]:             5006
+    Algorithm:                Core
+    Integral Cache:           LOAD
+    Schwarz Cutoff:          1E-12
+    Fitting Condition:       1E-10
+
+   => Auxiliary Basis Set <=
+
+  Basis Set: (AUG-CC-PVDZ AUX)
+    Blend: AUG-CC-PVDZ-JKFIT
+    Number of shells: 320
+    Number of basis functions: 944
+    Number of Cartesian functions: 1088
+    Spherical Harmonics?: true
+    Max angular momentum: 3
+
+  Minimum eigenvalue in the overlap matrix is 1.0263056460E-04.
+  Reciprocal condition number of the overlap matrix is 9.6402526965E-06.
+    Using symmetric orthogonalization.
+
+  ==> Pre-Iterations <==
+
+  SCF Guess: Superposition of Atomic Densities via on-the-fly atomic UHF (no occupation information).
+
+   -------------------------
+    Irrep   Nso     Nmo    
+   -------------------------
+     A        256     256 
+   -------------------------
+    Total     256     256
+   -------------------------
+
+  ==> Iterations <==
+
+                           Total Energy        Delta E     RMS |[F,P]|
+
+   @DF-RHF iter SAD:  -226.98992942985271   -2.26990e+02   0.00000e+00 
+   @DF-RHF iter   1:  -227.68091167495422   -6.90982e-01   2.28211e-03 DIIS
+   @DF-RHF iter   2:  -227.80091445172567   -1.20003e-01   1.32478e-03 DIIS
+   @DF-RHF iter   3:  -227.84131987199135   -4.04054e-02   2.33581e-04 DIIS
+   @DF-RHF iter   4:  -227.84355633547412   -2.23646e-03   1.03339e-04 DIIS
+   @DF-RHF iter   5:  -227.84403723649791   -4.80901e-04   2.42136e-05 DIIS
+   @DF-RHF iter   6:  -227.84407440449613   -3.71680e-05   1.17797e-05 DIIS
+   @DF-RHF iter   7:  -227.84408419262289   -9.78813e-06   3.84272e-06 DIIS
+   @DF-RHF iter   8:  -227.84408577420959   -1.58159e-06   1.01577e-06 DIIS
+   @DF-RHF iter   9:  -227.84408589086019   -1.16651e-07   2.12953e-07 DIIS
+   @DF-RHF iter  10:  -227.84408589468001   -3.81982e-09   5.61608e-08 DIIS
+   @DF-RHF iter  11:  -227.84408589488376   -2.03755e-10   1.80147e-08 DIIS
+   @DF-RHF iter  12:  -227.84408589490567   -2.19131e-11   4.26466e-09 DIIS
+   @DF-RHF iter  13:  -227.84408589490761   -1.93268e-12   8.93569e-10 DIIS
+   @DF-RHF iter  14:  -227.84408589490755    5.68434e-14   2.86710e-10 DIIS
+   @DF-RHF iter  15:  -227.84408589490735    1.98952e-13   1.08059e-10 DIIS
+   @DF-RHF iter  16:  -227.84408589490761   -2.55795e-13   2.86097e-11 DIIS
+  Energy and wave function converged.
+
+
+  ==> Post-Iterations <==
+
+    Orbital Energies [Eh]
+    ---------------------
+
+    Doubly Occupied:                                                      
+
+       1A    -20.629476     2A    -20.552804     3A    -11.396108  
+       4A    -11.250979     5A     -1.475853     6A     -1.357486  
+       7A     -1.032999     8A     -0.837930     9A     -0.703065  
+      10A     -0.688465    11A     -0.657749    12A     -0.576538  
+      13A     -0.569697    14A     -0.561403    15A     -0.475343  
+      16A     -0.452434  
+
+    Virtual:                                                              
+
+      17A      0.023992    18A      0.032196    19A      0.045588  
+      20A      0.046157    21A      0.053766    22A      0.055389  
+      23A      0.056262    24A      0.064710    25A      0.084718  
+      26A      0.098751    27A      0.103850    28A      0.111412  
+      29A      0.116529    30A      0.117327    31A      0.117877  
+      32A      0.139638    33A      0.140323    34A      0.140716  
+      35A      0.145859    36A      0.152149    37A      0.156622  
+      38A      0.164603    39A      0.171347    40A      0.175653  
+      41A      0.196303    42A      0.204919    43A      0.209252  
+      44A      0.213895    45A      0.225565    46A      0.233395  
+      47A      0.234975    48A      0.243364    49A      0.259569  
+      50A      0.264113    51A      0.270852    52A      0.275974  
+      53A      0.284738    54A      0.290296    55A      0.295808  
+      56A      0.319835    57A      0.322783    58A      0.331489  
+      59A      0.335479    60A      0.347277    61A      0.368701  
+      62A      0.370653    63A      0.378872    64A      0.394119  
+      65A      0.398471    66A      0.401464    67A      0.409001  
+      68A      0.426688    69A      0.430410    70A      0.436835  
+      71A      0.438616    72A      0.442007    73A      0.459767  
+      74A      0.475557    75A      0.489509    76A      0.492388  
+      77A      0.496562    78A      0.515821    79A      0.524763  
+      80A      0.537263    81A      0.541077    82A      0.542822  
+      83A      0.553502    84A      0.558881    85A      0.569740  
+      86A      0.583793    87A      0.586046    88A      0.602101  
+      89A      0.615615    90A      0.618231    91A      0.635526  
+      92A      0.636327    93A      0.640311    94A      0.649301  
+      95A      0.666703    96A      0.674421    97A      0.684210  
+      98A      0.689192    99A      0.697190   100A      0.700055  
+     101A      0.703576   102A      0.727332   103A      0.733292  
+     104A      0.742749   105A      0.752915   106A      0.759558  
+     107A      0.786394   108A      0.798461   109A      0.814996  
+     110A      0.819339   111A      0.847487   112A      0.853581  
+     113A      0.876836   114A      0.887449   115A      0.895669  
+     116A      0.912404   117A      0.946874   118A      0.949698  
+     119A      0.954377   120A      0.957372   121A      0.975178  
+     122A      0.983144   123A      1.037243   124A      1.041548  
+     125A      1.044485   126A      1.088820   127A      1.101853  
+     128A      1.105693   129A      1.118367   130A      1.157518  
+     131A      1.161888   132A      1.172144   133A      1.176359  
+     134A      1.190172   135A      1.236040   136A      1.259955  
+     137A      1.269545   138A      1.272192   139A      1.319230  
+     140A      1.328865   141A      1.358182   142A      1.383400  
+     143A      1.390445   144A      1.395554   145A      1.412461  
+     146A      1.433974   147A      1.457653   148A      1.462795  
+     149A      1.466946   150A      1.467976   151A      1.468819  
+     152A      1.536847   153A      1.546014   154A      1.568593  
+     155A      1.635049   156A      1.649918   157A      1.682999  
+     158A      1.715111   159A      1.716770   160A      1.755800  
+     161A      1.772884   162A      1.799288   163A      1.848043  
+     164A      1.865505   165A      1.882098   166A      1.883812  
+     167A      1.936273   168A      1.966454   169A      1.979453  
+     170A      2.026310   171A      2.037643   172A      2.070039  
+     173A      2.122848   174A      2.172049   175A      2.193140  
+     176A      2.244771   177A      2.250150   178A      2.253646  
+     179A      2.264197   180A      2.272354   181A      2.273251  
+     182A      2.302239   183A      2.312246   184A      2.335829  
+     185A      2.338388   186A      2.361399   187A      2.375842  
+     188A      2.379609   189A      2.430331   190A      2.438663  
+     191A      2.466477   192A      2.505184   193A      2.536303  
+     194A      2.585295   195A      2.623585   196A      2.652307  
+     197A      2.664002   198A      2.697610   199A      2.753634  
+     200A      2.783681   201A      2.785505   202A      2.823491  
+     203A      2.833647   204A      2.886121   205A      2.915320  
+     206A      2.974292   207A      3.001605   208A      3.016319  
+     209A      3.042037   210A      3.178941   211A      3.181763  
+     212A      3.277923   213A      3.310031   214A      3.346133  
+     215A      3.356213   216A      3.430876   217A      3.486053  
+     218A      3.662149   219A      3.666705   220A      3.690423  
+     221A      3.736441   222A      3.739492   223A      3.759663  
+     224A      3.790324   225A      3.805252   226A      3.900420  
+     227A      4.025529   228A      4.050368   229A      4.142342  
+     230A      4.153116   231A      4.309954   232A      4.504398  
+     233A      4.616336   234A      4.724315   235A      4.925377  
+     236A      4.969209   237A      4.977462   238A      5.001143  
+     239A      5.016316   240A      5.033188   241A      5.051859  
+     242A      5.221439   243A      5.243614   244A      5.614679  
+     245A      5.660687   246A      5.790801   247A      5.868515  
+     248A      6.052279   249A      6.228338   250A      6.520255  
+     251A      6.789749   252A      7.092445   253A     18.345661  
+     254A     18.940175   255A     33.525030   256A     33.563055  
+
+    Final Occupation by Irrep:
+              A 
+    DOCC [    16 ]
+
+  @DF-RHF Final Energy:  -227.84408589490761
+
+   => Energetics <=
+
+    Nuclear Repulsion Energy =            121.7484302109716197
+    One-Electron Energy =                -552.7483714452521326
+    Two-Electron Energy =                 203.1558553393729198
+    Total Energy =                       -227.8440858949076073
+
+Computation Completed
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the SCF density matrix
+
+  Nuclear Dipole Moment: [e a0]
+     X:   -98.5925      Y:    72.5259      Z:    62.6670
+
+  Electronic Dipole Moment: [e a0]
+     X:    99.4206      Y:   -72.8088      Z:   -62.7502
+
+  Dipole Moment: [e a0]
+     X:     0.8281      Y:    -0.2829      Z:    -0.0832     Total:     0.8790
+
+  Dipole Moment: [D]
+     X:     2.1048      Y:    -0.7191      Z:    -0.2116     Total:     2.2342
+
+
+*** tstop() called on ds1 at Wed Sep  1 13:38:11 2021
+Module time:
+	user time   =      10.95 seconds =       0.18 minutes
+	system time =       0.19 seconds =       0.00 minutes
+	total time  =          3 seconds =       0.05 minutes
+Total time:
+	user time   =      26.39 seconds =       0.44 minutes
+	system time =       0.59 seconds =       0.01 minutes
+	total time  =          6 seconds =       0.10 minutes
+
+  //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>//
+  //            Monomer B HF           //
+  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<//
+
+
+*** tstart() called on ds1
+*** at Wed Sep  1 13:38:11 2021
+
+   => Loading Basis Set <=
+
+    Name: AUG-CC-PVDZ
+    Role: ORBITAL
+    Keyword: BASIS
+    atoms 1-2, 9-10  entry O          line   254 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz.gbs 
+    atoms 3-6, 11-14 entry H          line    40 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz.gbs 
+    atoms 7-8, 15-16 entry C          line   182 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz.gbs 
+
+
+         ---------------------------------------------------------
+                                   SCF
+               by Justin Turney, Rob Parrish, Andy Simmonett
+                          and Daniel G. A. Smith
+                              RHF Reference
+                        6 Threads,   6675 MiB Core
+         ---------------------------------------------------------
+
+  ==> Geometry <==
+
+    Molecular point group: c1
+    Full point group: C1
+
+    Geometry (in Bohr), charge = 0, multiplicity = 1:
+
+       Center              X                  Y                   Z               Mass       
+    ------------   -----------------  -----------------  -----------------  -----------------
+      Gh(O)          -5.531022370000     2.939402900000     1.977626240000    15.994914619570
+      Gh(O)          -2.407088860000     0.908177340000     0.049059090000    15.994914619570
+      Gh(H)          -0.503048870000     1.375792050000     4.638809080000     1.007825032230
+      Gh(H)           0.000000000000     4.251042850000     3.090722380000     1.007825032230
+      Gh(H)          -2.389482150000     4.019167790000     5.401950410000     1.007825032230
+      Gh(H)          -3.747714110000     0.471479300000    -1.215575120000     1.007825032230
+      Gh(C)          -1.418597820000     2.985005000000     3.844051900000    12.000000000000
+      Gh(C)          -3.322637810000     2.286288140000     1.912214130000    12.000000000000
+         O           19.767305510000   -16.383519160000     7.428635740000    15.994914619570
+         O           16.643372000000   -18.414744730000     5.500068580000    15.994914619570
+         H           14.739332010000   -17.947130010000    10.089818580000     1.007825032230
+         H           14.236283140000   -15.071879210000     8.541731880000     1.007825032230
+         H           16.625765290000   -15.303754270000    10.852959900000     1.007825032230
+         H           17.983997250000   -18.851442770000     4.235434380000     1.007825032230
+         C           15.654880960000   -16.337917060000     9.295061390000    12.000000000000
+         C           17.558920950000   -17.036633930000     7.363223630000    12.000000000000
+
+  Running in c1 symmetry.
+
+  Rotational constants: A =      0.05784  B =      0.00151  C =      0.00149 [cm^-1]
+  Rotational constants: A =   1733.99394  B =     45.21636  C =     44.55647 [MHz]
+  Nuclear repulsion =  121.748430120300569
+
+  Charge       = 0
+  Multiplicity = 1
+  Electrons    = 32
+  Nalpha       = 16
+  Nbeta        = 16
+
+  ==> Algorithm <==
+
+  SCF Algorithm Type is DF.
+  DIIS enabled.
+  MOM disabled.
+  Fractional occupation disabled.
+  Guess Type is SAD.
+  Energy threshold   = 1.00e-10
+  Density threshold  = 1.00e-10
+  Integral threshold = 1.00e-12
+
+  ==> Primary Basis <==
+
+  Basis Set: AUG-CC-PVDZ
+    Blend: AUG-CC-PVDZ
+    Number of shells: 112
+    Number of basis functions: 256
+    Number of Cartesian functions: 272
+    Spherical Harmonics?: true
+    Max angular momentum: 2
+
+   => Loading Basis Set <=
+
+    Name: (AUG-CC-PVDZ AUX)
+    Role: JKFIT
+    Keyword: DF_BASIS_SCF
+    atoms 1-2, 9-10  entry O          line   270 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-jkfit.gbs 
+    atoms 3-6, 11-14 entry H          line    70 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-jkfit.gbs 
+    atoms 7-8, 15-16 entry C          line   154 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-jkfit.gbs 
+
+  ==> Integral Setup <==
+
+  ==> DiskDFJK: Density-Fitted J/K Matrices <==
+
+    J tasked:                  Yes
+    K tasked:                  Yes
+    wK tasked:                  No
+    OpenMP threads:              6
+    Integrals threads:           6
+    Memory [MiB]:             5006
+    Algorithm:                Core
+    Integral Cache:           LOAD
+    Schwarz Cutoff:          1E-12
+    Fitting Condition:       1E-10
+
+   => Auxiliary Basis Set <=
+
+  Basis Set: (AUG-CC-PVDZ AUX)
+    Blend: AUG-CC-PVDZ-JKFIT
+    Number of shells: 320
+    Number of basis functions: 944
+    Number of Cartesian functions: 1088
+    Spherical Harmonics?: true
+    Max angular momentum: 3
+
+  Minimum eigenvalue in the overlap matrix is 1.0263056460E-04.
+  Reciprocal condition number of the overlap matrix is 9.6402526965E-06.
+    Using symmetric orthogonalization.
+
+  ==> Pre-Iterations <==
+
+  SCF Guess: Superposition of Atomic Densities via on-the-fly atomic UHF (no occupation information).
+
+   -------------------------
+    Irrep   Nso     Nmo    
+   -------------------------
+     A        256     256 
+   -------------------------
+    Total     256     256
+   -------------------------
+
+  ==> Iterations <==
+
+                           Total Energy        Delta E     RMS |[F,P]|
+
+   @DF-RHF iter SAD:  -226.98992942378413   -2.26990e+02   0.00000e+00 
+   @DF-RHF iter   1:  -227.68091167220243   -6.90982e-01   2.28211e-03 DIIS
+   @DF-RHF iter   2:  -227.80091444827920   -1.20003e-01   1.32478e-03 DIIS
+   @DF-RHF iter   3:  -227.84131986861851   -4.04054e-02   2.33581e-04 DIIS
+   @DF-RHF iter   4:  -227.84355633209640   -2.23646e-03   1.03339e-04 DIIS
+   @DF-RHF iter   5:  -227.84403723311544   -4.80901e-04   2.42136e-05 DIIS
+   @DF-RHF iter   6:  -227.84407440111306   -3.71680e-05   1.17797e-05 DIIS
+   @DF-RHF iter   7:  -227.84408418923965   -9.78813e-06   3.84272e-06 DIIS
+   @DF-RHF iter   8:  -227.84408577082652   -1.58159e-06   1.01577e-06 DIIS
+   @DF-RHF iter   9:  -227.84408588747704   -1.16651e-07   2.12953e-07 DIIS
+   @DF-RHF iter  10:  -227.84408589129748   -3.82045e-09   5.61608e-08 DIIS
+   @DF-RHF iter  11:  -227.84408589150095   -2.03471e-10   1.80147e-08 DIIS
+   @DF-RHF iter  12:  -227.84408589152258   -2.16289e-11   4.26466e-09 DIIS
+   @DF-RHF iter  13:  -227.84408589152446   -1.87583e-12   8.93569e-10 DIIS
+   @DF-RHF iter  14:  -227.84408589152480   -3.41061e-13   2.86710e-10 DIIS
+   @DF-RHF iter  15:  -227.84408589152457    2.27374e-13   1.08058e-10 DIIS
+   @DF-RHF iter  16:  -227.84408589152446    1.13687e-13   2.86100e-11 DIIS
+  Energy and wave function converged.
+
+
+  ==> Post-Iterations <==
+
+    Orbital Energies [Eh]
+    ---------------------
+
+    Doubly Occupied:                                                      
+
+       1A    -20.629476     2A    -20.552804     3A    -11.396108  
+       4A    -11.250979     5A     -1.475853     6A     -1.357486  
+       7A     -1.032999     8A     -0.837930     9A     -0.703065  
+      10A     -0.688465    11A     -0.657749    12A     -0.576538  
+      13A     -0.569697    14A     -0.561403    15A     -0.475343  
+      16A     -0.452434  
+
+    Virtual:                                                              
+
+      17A      0.024228    18A      0.032201    19A      0.045584  
+      20A      0.046356    21A      0.053739    22A      0.055758  
+      23A      0.056481    24A      0.064677    25A      0.084935  
+      26A      0.098754    27A      0.104069    28A      0.111648  
+      29A      0.116782    30A      0.117370    31A      0.117875  
+      32A      0.139876    33A      0.140544    34A      0.140847  
+      35A      0.145973    36A      0.152171    37A      0.156566  
+      38A      0.164712    39A      0.171320    40A      0.175881  
+      41A      0.196303    42A      0.205086    43A      0.209259  
+      44A      0.214094    45A      0.225767    46A      0.233417  
+      47A      0.234964    48A      0.243583    49A      0.259777  
+      50A      0.264328    51A      0.270854    52A      0.276204  
+      53A      0.284952    54A      0.290295    55A      0.295812  
+      56A      0.319835    57A      0.322783    58A      0.331784  
+      59A      0.335679    60A      0.347282    61A      0.368964  
+      62A      0.370652    63A      0.378870    64A      0.394114  
+      65A      0.398700    66A      0.401511    67A      0.409275  
+      68A      0.426696    69A      0.430634    70A      0.437220  
+      71A      0.438360    72A      0.442159    73A      0.459940  
+      74A      0.475560    75A      0.489717    76A      0.492385  
+      77A      0.496790    78A      0.516032    79A      0.524763  
+      80A      0.537262    81A      0.541250    82A      0.543059  
+      83A      0.553504    84A      0.559137    85A      0.569740  
+      86A      0.583801    87A      0.586287    88A      0.602101  
+      89A      0.615825    90A      0.618231    91A      0.635739  
+      92A      0.636576    93A      0.640312    94A      0.649301  
+      95A      0.666704    96A      0.674645    97A      0.684222  
+      98A      0.689450    99A      0.697194   100A      0.700311  
+     101A      0.703573   102A      0.727608   103A      0.733289  
+     104A      0.742750   105A      0.753148   106A      0.759815  
+     107A      0.786630   108A      0.798461   109A      0.815265  
+     110A      0.819590   111A      0.847728   112A      0.853581  
+     113A      0.876834   114A      0.887716   115A      0.895906  
+     116A      0.912405   117A      0.947122   118A      0.949697  
+     119A      0.954376   120A      0.957607   121A      0.975407  
+     122A      0.983145   123A      1.037473   124A      1.041550  
+     125A      1.044690   126A      1.088826   127A      1.101846  
+     128A      1.105921   129A      1.118368   130A      1.157519  
+     131A      1.162088   132A      1.172141   133A      1.176363  
+     134A      1.190373   135A      1.236045   136A      1.260155  
+     137A      1.269748   138A      1.272193   139A      1.319230  
+     140A      1.329070   141A      1.358185   142A      1.383608  
+     143A      1.390446   144A      1.395747   145A      1.412457  
+     146A      1.434190   147A      1.457845   148A      1.462795  
+     149A      1.467142   150A      1.467976   151A      1.469021  
+     152A      1.537056   153A      1.546014   154A      1.568799  
+     155A      1.635054   156A      1.649917   157A      1.683207  
+     158A      1.715113   159A      1.716986   160A      1.755801  
+     161A      1.772884   162A      1.799492   163A      1.848044  
+     164A      1.865505   165A      1.882384   166A      1.883812  
+     167A      1.936523   168A      1.966456   169A      1.979454  
+     170A      2.026299   171A      2.037648   172A      2.070297  
+     173A      2.122849   174A      2.172049   175A      2.193139  
+     176A      2.244773   177A      2.250423   178A      2.253644  
+     179A      2.264448   180A      2.272355   181A      2.273472  
+     182A      2.302503   183A      2.312246   184A      2.336141  
+     185A      2.338619   186A      2.361647   187A      2.376066  
+     188A      2.379607   189A      2.430331   190A      2.438664  
+     191A      2.466690   192A      2.505373   193A      2.536304  
+     194A      2.585525   195A      2.623585   196A      2.652307  
+     197A      2.664220   198A      2.697863   199A      2.753886  
+     200A      2.783681   201A      2.785738   202A      2.823773  
+     203A      2.833647   204A      2.886122   205A      2.915539  
+     206A      2.974296   207A      3.001603   208A      3.016320  
+     209A      3.042277   210A      3.178941   211A      3.182009  
+     212A      3.278174   213A      3.310285   214A      3.346132  
+     215A      3.356465   216A      3.431099   217A      3.486310  
+     218A      3.662385   219A      3.666705   220A      3.690423  
+     221A      3.736441   222A      3.739688   223A      3.759663  
+     224A      3.790324   225A      3.805252   226A      3.900421  
+     227A      4.025755   228A      4.050368   229A      4.142343  
+     230A      4.153290   231A      4.309954   232A      4.504612  
+     233A      4.616536   234A      4.724561   235A      4.925584  
+     236A      4.969423   237A      4.977648   238A      5.001358  
+     239A      5.016514   240A      5.033380   241A      5.052132  
+     242A      5.221668   243A      5.243840   244A      5.614852  
+     245A      5.660877   246A      5.790991   247A      5.868731  
+     248A      6.052487   249A      6.228557   250A      6.520434  
+     251A      6.789938   252A      7.092649   253A     18.345908  
+     254A     18.940415   255A     33.525251   256A     33.563227  
+
+    Final Occupation by Irrep:
+              A 
+    DOCC [    16 ]
+
+  @DF-RHF Final Energy:  -227.84408589152446
+
+   => Energetics <=
+
+    Nuclear Repulsion Energy =            121.7484301203005685
+    One-Electron Energy =                -552.7483712397695399
+    Two-Electron Energy =                 203.1558552279445280
+    Total Energy =                       -227.8440858915244576
+
+Computation Completed
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the SCF density matrix
+
+  Nuclear Dipole Moment: [e a0]
+     X:   554.1536      Y:  -545.8076      Z:   237.0993
+
+  Electronic Dipole Moment: [e a0]
+     X:  -554.9817      Y:   545.5247      Z:  -237.1825
+
+  Dipole Moment: [e a0]
+     X:    -0.8281      Y:    -0.2829      Z:    -0.0832     Total:     0.8790
+
+  Dipole Moment: [D]
+     X:    -2.1048      Y:    -0.7191      Z:    -0.2116     Total:     2.2342
+
+
+*** tstop() called on ds1 at Wed Sep  1 13:38:13 2021
+Module time:
+	user time   =      11.06 seconds =       0.18 minutes
+	system time =       0.20 seconds =       0.00 minutes
+	total time  =          2 seconds =       0.03 minutes
+Total time:
+	user time   =      37.47 seconds =       0.62 minutes
+	system time =       0.79 seconds =       0.01 minutes
+	total time  =          8 seconds =       0.13 minutes
+  Constructing Basis Sets for SAPT...
+
+   => Loading Basis Set <=
+
+    Name: (AUG-CC-PVDZ AUX)
+    Role: RIFIT
+    Keyword: DF_BASIS_SAPT
+    atoms 1-2, 9-10  entry O          line   204 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-ri.gbs 
+    atoms 3-6, 11-14 entry H          line    30 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-ri.gbs 
+    atoms 7-8, 15-16 entry C          line   112 file /theoryfs2/ds/csargent/miniconda3/envs/cle/share/psi4/basis/aug-cc-pvdz-ri.gbs 
+
+
+  //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>//
+  //               SAPT0               //
+  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<//
+
+
+*** tstart() called on ds1
+*** at Wed Sep  1 13:38:13 2021
+
+        SAPT0  
+    Ed Hohenstein
+     6 June 2009
+
+      Orbital Information
+  --------------------------
+    NSO        =       256
+    NMO        =       256
+    NRI        =       760
+    NOCC A     =        16
+    NOCC B     =        16
+    FOCC A     =         4
+    FOCC B     =         4
+    NVIR A     =       240
+    NVIR B     =       240
+
+    Elst10,r            =     0.000013258763 [Eh]
+    Exch10              =     0.000000000001 [Eh]
+    Exch10 (S^2)        =     0.000000000001 [Eh]
+
+    Iter     Energy [mEh]          dE [mEh]         Residual      Time [s]
+       1      -0.00002844       0.000028440       0.044325997             0
+       2      -0.00002809      -0.000000348       0.016202797             0
+       3      -0.00002995       0.000001858       0.006752003             0
+       4      -0.00003070       0.000000754       0.001149350             0
+       5      -0.00003058      -0.000000120       0.000509223             0
+       6      -0.00003058      -0.000000002       0.000224278             0
+       7      -0.00003059       0.000000010       0.000060381             0
+       8      -0.00003059       0.000000001       0.000015489             0
+       9      -0.00003059      -0.000000001       0.000006637             1
+      10      -0.00003059      -0.000000000       0.000002814             1
+      11      -0.00003059       0.000000000       0.000000754             1
+
+    CHF Iterations converged
+
+
+    Iter     Energy [mEh]          dE [mEh]         Residual      Time [s]
+       1      -0.00003071       0.000030714       0.041414619             0
+       2      -0.00003124       0.000000531       0.015613965             0
+       3      -0.00003328       0.000002039       0.006537090             0
+       4      -0.00003393       0.000000647       0.001160159             0
+       5      -0.00003380      -0.000000127       0.000446794             0
+       6      -0.00003380      -0.000000002       0.000222102             0
+       7      -0.00003381       0.000000010       0.000069224             0
+       8      -0.00003381       0.000000001       0.000019221             0
+       9      -0.00003381      -0.000000001       0.000007898             0
+      10      -0.00003381      -0.000000000       0.000003230             0
+      11      -0.00003381       0.000000000       0.000000820             1
+
+    CHF Iterations converged
+
+    Ind20,r (A<-B)      =    -0.000000030591 [Eh]
+    Ind20,r (B<-A)      =    -0.000000033812 [Eh]
+    Ind20,r             =    -0.000000064402 [Eh]
+    Exch-Ind20,r (A<-B) =     0.000000000003 [Eh]
+    Exch-Ind20,r (B<-A) =     0.000000000003 [Eh]
+    Exch-Ind20,r        =     0.000000000006 [Eh]
+    Disp20              =    -0.000001170278 [Eh]
+    Disp20 (SS)         =    -0.000000585139 [Eh]
+    Disp20 (OS)         =    -0.000000585139 [Eh]
+    Exch-Disp20         =     0.000000000001 [Eh]
+    Exch-Disp20 (SS)    =     0.000000000001 [Eh]
+    Exch-Disp20 (OS)    =     0.000000000000 [Eh]
+
+    SAPT Results 
+  --------------------------------------------------------------------------------------------------------
+    Electrostatics                  0.01325876 [mEh]       0.00832000 [kcal/mol]       0.03481088 [kJ/mol]
+      Elst10,r                      0.01325876 [mEh]       0.00832000 [kcal/mol]       0.03481088 [kJ/mol]
+
+    Exchange                        0.00000000 [mEh]       0.00000000 [kcal/mol]       0.00000000 [kJ/mol]
+      Exch10                        0.00000000 [mEh]       0.00000000 [kcal/mol]       0.00000000 [kJ/mol]
+      Exch10(S^2)                   0.00000000 [mEh]       0.00000000 [kcal/mol]       0.00000000 [kJ/mol]
+
+    Induction                      -0.00010957 [mEh]      -0.00006876 [kcal/mol]      -0.00028768 [kJ/mol]
+      Ind20,r                      -0.00006440 [mEh]      -0.00004041 [kcal/mol]      -0.00016909 [kJ/mol]
+      Exch-Ind20,r                  0.00000001 [mEh]       0.00000000 [kcal/mol]       0.00000002 [kJ/mol]
+      delta HF,r (2)               -0.00004518 [mEh]      -0.00002835 [kcal/mol]      -0.00011861 [kJ/mol]
+
+    Dispersion                     -0.00117028 [mEh]      -0.00073436 [kcal/mol]      -0.00307256 [kJ/mol]
+      Disp20                       -0.00117028 [mEh]      -0.00073436 [kcal/mol]      -0.00307256 [kJ/mol]
+      Exch-Disp20                   0.00000000 [mEh]       0.00000000 [kcal/mol]       0.00000000 [kJ/mol]
+      Disp20 (SS)                  -0.00058514 [mEh]      -0.00036718 [kcal/mol]      -0.00153628 [kJ/mol]
+      Disp20 (OS)                  -0.00058514 [mEh]      -0.00036718 [kcal/mol]      -0.00153628 [kJ/mol]
+      Exch-Disp20 (SS)              0.00000000 [mEh]       0.00000000 [kcal/mol]       0.00000000 [kJ/mol]
+      Exch-Disp20 (OS)              0.00000000 [mEh]       0.00000000 [kcal/mol]       0.00000000 [kJ/mol]
+
+  Total HF                          0.01314919 [mEh]       0.00825124 [kcal/mol]       0.03452320 [kJ/mol]
+  Total SAPT0                       0.01197892 [mEh]       0.00751688 [kcal/mol]       0.03145064 [kJ/mol]
+
+  Special recipe for scaled SAPT0 (see Manual):
+    Electrostatics sSAPT0           0.01325876 [mEh]       0.00832000 [kcal/mol]       0.03481088 [kJ/mol]
+    Exchange sSAPT0                 0.00000000 [mEh]       0.00000000 [kcal/mol]       0.00000000 [kJ/mol]
+    Induction sSAPT0               -0.00010957 [mEh]      -0.00006876 [kcal/mol]      -0.00028768 [kJ/mol]
+    Dispersion sSAPT0              -0.00117028 [mEh]      -0.00073436 [kcal/mol]      -0.00307256 [kJ/mol]
+  Total sSAPT0                      0.01197892 [mEh]       0.00751688 [kcal/mol]       0.03145064 [kJ/mol]
+  --------------------------------------------------------------------------------------------------------
+
+*** tstop() called on ds1 at Wed Sep  1 13:38:19 2021
+Module time:
+	user time   =      27.51 seconds =       0.46 minutes
+	system time =       2.45 seconds =       0.04 minutes
+	total time  =          6 seconds =       0.10 minutes
+Total time:
+	user time   =      65.69 seconds =       1.09 minutes
+	system time =       3.27 seconds =       0.05 minutes
+	total time  =         14 seconds =       0.23 minutes
+
+
+Warning! sapt0 does not have an associated derived wavefunction.The returned wavefunction is the dimer SCF wavefunction.
+
+
+    Psi4 stopped on: Wednesday, 01 September 2021 01:38PM
+    Psi4 wall time for execution: 0:00:14.25
+
+*** Psi4 exiting successfully. Buy a developer a beer!
