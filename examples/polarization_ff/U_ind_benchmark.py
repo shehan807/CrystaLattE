@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import time 
 from openff.toolkit.topology import Molecule
+from ind20 import get_all_fit_energies
 
 file_dir = os.path.dirname(os.path.realpath(__file__)) + "/"
 
@@ -42,15 +43,19 @@ def main():
                     atom_types_map=atom_types_map,
                     omm_decomp=True
             )
-
+            
+            fit_energies = get_all_fit_energies(qcel_mol, molecule)
+            
             results.append({
                 "distance": distance,
                 "nmer_name": Nmer_name,
-                "Uind_md": Uind_md,
+                "Uind_md": Uind_md, #fit_energies['ind20_fit'], 
                 "Udf": Udf,
                 "Unb": Unb,
                 "Ues": Unb,
                 "Uind_sapt": Uind_sapt,
+                "ind20_fit": fit_energies['ind20_fit'],
+                "dhf_fit": fit_energies['dhf_fit'],
                 # "Ues_sapt": Ues_sapt,
             })
             #print(f"(Ues_sapt, Ues, Uind_sapt, Uind, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt}, {Uind_md}, {distance})")
