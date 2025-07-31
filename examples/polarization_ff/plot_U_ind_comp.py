@@ -142,7 +142,8 @@ def plot_induction_parity(
     elif electrostatics:
         ax.set_xlabel("SAPT Electrostatics (kJ/mol)", fontsize=fontsize)
     else:
-        ax.set_xlabel("SAPT Induction (kJ/mol)", fontsize=fontsize)
+        #ax.set_xlabel("SAPT Induction (kJ/mol)", fontsize=fontsize)
+        ax.set_xlabel("SAPT Ind20 (kJ/mol)", fontsize=fontsize)
     if omm:
         ax.set_ylabel("OpenMM Induction (kJ/mol)", fontsize=fontsize)
     elif drudeforce:
@@ -152,7 +153,8 @@ def plot_induction_parity(
     elif electrostatics:
         ax.set_ylabel("MD Electrostatics (kJ/mol)", fontsize=fontsize)
     else:
-        ax.set_ylabel("MD Induction (kJ/mol)", fontsize=fontsize)
+        #ax.set_ylabel("MD Induction (kJ/mol)", fontsize=fontsize)
+        ax.set_ylabel("MD Ind20 (kJ/mol)", fontsize=fontsize)
     # ax.set_title(title, fontsize=fontsize)
 
     # 5) Plot scatter, color by distance

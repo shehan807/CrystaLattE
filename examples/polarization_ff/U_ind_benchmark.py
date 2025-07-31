@@ -5,9 +5,27 @@ import pandas as pd
 import time 
 from openff.toolkit.topology import Molecule
 from ind20 import get_all_fit_energies
+import re 
 
 file_dir = os.path.dirname(os.path.realpath(__file__)) + "/"
 
+def extract_sapt_induction(output_file):
+    """Extract Ind20,r + Exch-Ind20,r values from SAPT output file and return in kJ/mol"""
+    with open(output_file, 'r') as f:
+        content = f.read()
+    
+    # Find Ind20,r value in kJ/mol
+    ind20_match = re.search(r'Ind20,r\s+.*?\s+([-\d.]+)\s+\[kJ/mol\]', content)
+    # Find Exch-Ind20,r value in kJ/mol
+    exch_ind20_match = re.search(r'Exch-Ind20,r\s+.*?\s+([-\d.]+)\s+\[kJ/mol\]', content)
+     
+    if ind20_match and exch_ind20_match:
+        ind20_value = float(ind20_match.group(1))
+        exch_ind20_value = float(exch_ind20_match.group(1))
+        return ind20_value, exch_ind20_value
+    else:
+        print(f"Ind20 and Exch-Ind20 Match not found!")
+        return None, None
 
 def main():
     if "MOLECULES_LIST" in os.environ:
@@ -44,6 +62,8 @@ def main():
                     omm_decomp=True
             )
             
+            output_file = os.path.join(molecule, f"{molecule}_outputs", f"{Nmer_name}.out")
+            Uind20_sapt, ind_exch = extract_sapt_induction(output_file)
             fit_energies = get_all_fit_energies(qcel_mol, molecule)
             
             results.append({
@@ -53,9 +73,11 @@ def main():
                 "Udf": Udf,
                 "Unb": Unb,
                 "Ues": Unb,
-                "Uind_sapt": Uind_sapt,
+                "Uind_sapt": Uind20_sapt, #Uind_sapt,
                 "ind20_fit": fit_energies['ind20_fit'],
                 "dhf_fit": fit_energies['dhf_fit'],
+                "Uind20": Uind20_sapt, 
+                "Uexch_ind": ind_exch,
                 # "Ues_sapt": Ues_sapt,
             })
             #print(f"(Ues_sapt, Ues, Uind_sapt, Uind, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt}, {Uind_md}, {distance})")
