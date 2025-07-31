@@ -349,9 +349,36 @@ def polarization_energy_sample(qcel_mol, **kwargs):
     xmlmd = utils.XmlMD(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
     xmlmd.parse_xml(xml_file)
 
+<<<<<<< Updated upstream
     Rij, Dij = utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
     Qi_core, Qi_shell, Qj_core, Qj_shell = utils.get_QiQj(xmlmd) 
     k, u_scale = utils.get_pol_params(xmlmd)
+=======
+    if kwargs.get("update_pdb") is not None and kwargs.get("update_pdb"):
+        Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map, pdb_template=pdb_file)
+    else:
+        Rij, Dij = openmm_utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
+
+    # get_QiQj() and get_pol_params() can, in principle, depend solely on the xml_file 
+    Qi_core, Qi_shell, Qj_core, Qj_shell = openmm_utils.get_QiQj(simmd) 
+    k, u_scale = openmm_utils.get_pol_params(simmd)
+    
+
+    Qi_core_off, Qi_shell_off, Qj_core_off, Qj_shell_off = openmm_utils.get_QiQj_off(xmlmd) 
+    k_off, u_scale_off = openmm_utils.get_pol_params_off(xmlmd)
+    
+    
+    #print(f"k:{k}\nk_off:{k_off}")
+    #print(f"u_scale:{u_scale}\nu_scale_off:{u_scale_off}")
+
+    assert np.array_equal(Qi_core, Qi_core_off)
+    assert np.array_equal(Qi_shell, Qi_shell_off)
+    assert np.array_equal(Qj_core, Qj_core_off)
+    assert np.array_equal(Qj_shell, Qj_shell_off)
+    assert np.array_equal(k, k_off)
+    assert np.array_equal(u_scale, u_scale_off)
+    print(f"all off vs omm data structures passed")
+>>>>>>> Stashed changes
 
     ### These lines should live in polarization_energy_function later on ### 
     
