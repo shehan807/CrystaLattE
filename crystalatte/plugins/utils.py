@@ -462,9 +462,7 @@ def _map_mol(mol, _map):
     for i in range(n_fragments):
         
         mol_i = mol.get_fragment(i)
-        #print(mol_i.geometry)
         target_types = [f"{s}{i}" for i,s in enumerate(mol_i.symbols)]
-        
         geometry = np.array(mol_i.geometry)*constants.conversion_factor("bohr", "nanometer")
         geometry_mapped = np.zeros_like(geometry)
         for idx, _type in enumerate(target_types):
@@ -476,12 +474,9 @@ def _map_mol(mol, _map):
                 geometry=geometry_mapped * constants.conversion_factor("nanometer", "bohr"),  # Convert back to bohr for QCElemental
                 name=f"mapped_mol_{i}",
         )
-        #print(mol_mapped_i)
-        #print(mol_mapped_i.geometry)
         mapped_fragments.append(mol_mapped_i)
     
     combined_geoms = np.vstack([frag.geometry for frag in mapped_fragments])
-    #print(combined_geoms)
     combined_symbols = []
     for frag in mapped_fragments:
         combined_symbols.extend(frag.symbols)

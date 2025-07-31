@@ -30,36 +30,9 @@ def main():
         start_time = time.time()
         for index, row in df.iterrows():
             qcel_mol = row["mol"]
-<<<<<<< Updated upstream
-=======
-            qcel_mol.to_file("pyrazine.xyz", dtype="xyz")
-            #fragments = qcel_mol.fragments()
-            #print(fragments)
-            #off_frag = Molecule.from_qcschema(fragment.dict())
-            #print(f"off_frag: {off_frag}")
-            #mapped_smiles = off_frag.to_smiles(
-            #    isomeric=True, 
-            #    explicit_hydrogens=True, 
-            #    mapped=True  # <--- critical!
-            #)
-            #print(f"mapped_smiles: {mapped_smiles}")
-            #off_frag_canonical = Molecule.from_smiles(
-            #    mapped_smiles,
-            #    allow_undefined_stereo=True
-            #)
-            #print(f"off_frag: {off_frag}")
-            #off_frag_canonical = Molecule.from_smiles(
-            #    mapped_smiles,
-            #    allow_undefined_stereo=True
-            #)
-            #print(f"off_frag_canonical: {off_frag_canonical}")
-
-                
-
->>>>>>> Stashed changes
             distance = row["Minimum Monomer Separations (A)"] 
             Uind_sapt = row["SAPT0 Induction (kJ/mol)"]
-            Ues_sapt = row["SAPT0 Electrostatics (kJ/mol)"]
+            # Ues_sapt = row["SAPT0 Electrostatics (kJ/mol)"]
             Nmer_name = row["N-mer Name"]
             
             Uind_md, Udf, Unb, Ues = force_fields.polarization_energy_sample(
@@ -78,9 +51,10 @@ def main():
                 "Unb": Unb,
                 "Ues": Unb,
                 "Uind_sapt": Uind_sapt,
-                "Ues_sapt": Ues_sapt,
+                # "Ues_sapt": Ues_sapt,
             })
-            print(f"(Ues_sapt, Ues, Uind_sapt, Uind, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt}, {Uind_md}, {distance})")
+            #print(f"(Ues_sapt, Ues, Uind_sapt, Uind, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt}, {Uind_md}, {distance})")
+            print(f"(Ues, Uind_sapt, Uind, distance) = ({Ues}, {Uind_sapt}, {Uind_md}, {distance})")
         end_time = time.time()
         results_df = pd.DataFrame(results)
         results_df['time_per_system'] = (end_time - start_time) / len(results)
