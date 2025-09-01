@@ -51,7 +51,7 @@ def main():
             qcel_mol = row["mol"]
             distance = row["Minimum Monomer Separations (A)"] 
             Uind_sapt = row["SAPT0 Induction (kJ/mol)"]
-            # Ues_sapt = row["SAPT0 Electrostatics (kJ/mol)"]
+            Ues_sapt = row["SAPT0 Electrostatics (kJ/mol)"]
             Nmer_name = row["N-mer Name"]
             
             Uind_md, Udf, Unb, Ues = force_fields.polarization_energy_sample(
@@ -64,7 +64,7 @@ def main():
             
             output_file = os.path.join(molecule, f"{molecule}_outputs", f"{Nmer_name}.out")
             Uind20_sapt, ind_exch = extract_sapt_induction(output_file)
-            fit_energies = get_all_fit_energies(qcel_mol, molecule)
+            # fit_energies = get_all_fit_energies(qcel_mol, molecule)
             
             results.append({
                 "distance": distance,
@@ -74,14 +74,14 @@ def main():
                 "Unb": Unb,
                 "Ues": Unb,
                 "Uind_sapt": Uind20_sapt, #Uind_sapt,
-                "ind20_fit": fit_energies['ind20_fit'],
-                "dhf_fit": fit_energies['dhf_fit'],
+                #"ind20_fit": fit_energies['ind20_fit'],
+                #"dhf_fit": fit_energies['dhf_fit'],
                 "Uind20": Uind20_sapt, 
                 "Uexch_ind": ind_exch,
-                # "Ues_sapt": Ues_sapt,
+                "Ues_sapt": Ues_sapt,
             })
-            #print(f"(Ues_sapt, Ues, Uind_sapt, Uind, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt}, {Uind_md}, {distance})")
-            print(f"(Ues, Uind_sapt, Uind, distance) = ({Ues}, {Uind_sapt}, {Uind_md}, {distance})")
+            print(f"(Ues_sapt, Ues, Uind_sapt, Uind, distance) = ({Ues_sapt}, {Ues}, {Uind_sapt}, {Uind_md}, {distance})")
+            #print(f"(Ues, Uind_sapt, Uind, distance) = ({Ues}, {Uind_sapt}, {Uind_md}, {distance})")
         end_time = time.time()
         results_df = pd.DataFrame(results)
         results_df['time_per_system'] = (end_time - start_time) / len(results)
