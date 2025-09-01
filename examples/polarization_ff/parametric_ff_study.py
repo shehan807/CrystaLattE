@@ -527,7 +527,7 @@ def generate_latex_table(summary_df, output_file=None):
     latex_lines.append("% \\sisetup{detect-weight=true, detect-inline-weight=math, round-mode=places, round-precision=3}")
     latex_lines.append("")
     latex_lines.append("% Helper macro for metric cells")
-    latex_lines.append("% \\newcommand{\\metriccell}[4]{\\makecell[l]{\\textbf{Elec}: \\num{#1} / \\num{#2}\\\\\\textbf{Ind}: \\num{#3} / \\num{#4}}}")
+    latex_lines.append("% \\newcommand{\\metriccell}[4]{\\makecell[l]{\\num{#1} / \\num{#2}\\\\\\num{#3} / \\num{#4}}}")
     latex_lines.append("% \\newcommand{\\rowsep}{\\addlinespace[2pt]}")
     latex_lines.append("")
     
@@ -538,7 +538,7 @@ def generate_latex_table(summary_df, output_file=None):
     latex_lines.append("  \\setlength{\\tabcolsep}{6pt}")
     latex_lines.append("  \\renewcommand{\\arraystretch}{1.2}")
     latex_lines.append("  \\begin{threeparttable}")
-    latex_lines.append("    \\caption{Electrostatics and induction errors (MAE/RMSE) across charge methods, Drude models, and distance intervals.}")
+    latex_lines.append("    \\caption{Electrostatics and induction errors (MAE/RMSE) across charge methods, Drude models, and closest contact distance intervals.}")
     latex_lines.append("    \\label{tab:charge-drude-intervals}")
     
     # Create column specification with X columns for molecules
@@ -559,7 +559,8 @@ def generate_latex_table(summary_df, output_file=None):
     ]
     
     for molecule in molecules:
-        header_parts.append(f"\\makecell[c]{{\\textbf{{{molecule.capitalize()}}}}}")
+        display_name = molecule.replace('_', '\\_') if molecule == 'Acetic_acid' else molecule.capitalize()
+        header_parts.append(f"\\makecell[c]{{\\textbf{{{display_name}}}}}")
     
     header = " &\n        ".join(header_parts) + " \\\\"
     latex_lines.append("      " + header)
@@ -648,7 +649,7 @@ def generate_latex_table(summary_df, output_file=None):
     latex_lines.append("")
     latex_lines.append("    \\begin{tablenotes}[flushleft]\\footnotesize")
     latex_lines.append("      \\item \\textit{Notes:} Values are \\textbf{MAE/RMSE} in \\si{\\kilo\\joule\\per\\mole}. Each molecule cell reports two lines:")
-    latex_lines.append("      \\emph{Elec} (electrostatics error) and \\emph{Ind} (induction error). Distance intervals are center-of-mass separations in \\si{\\angstrom}.")
+    latex_lines.append("      electrostatics error (top) and induction error (bottom). Distance intervals are closest contact separations in \\si{\\angstrom}.")
     latex_lines.append("      Static charge methods: " + ", ".join(static_models) + ". Drude charge methods: " + ", ".join(drude_models) + ".")
     latex_lines.append("    \\end{tablenotes}")
     latex_lines.append("  \\end{threeparttable}")
