@@ -2,23 +2,16 @@
 Example: compute imidazole crystal lattice energy using a Drude-polarizable
 SAPT-FF via the polarization plugin's custom_function dispatch.
 
-Run from the CrystaLattE project root:
-    python examples/polarization_ff_imidazole.py
+Run from this directory (examples/polarization_ff/):
+    python polarization_ff_imidazole.py
 """
-from pathlib import Path
-
 import crystalatte
 from crystalatte import plugins
 
 
-HERE = Path(__file__).parent
-FIXTURES = HERE / "polarization_ff" / "imidazole"
-SHIPPED_CIFS = HERE.parent / "crystalatte" / "data" / "cif"
-
-
 def main():
     _, cle, output_data = crystalatte.main(
-        cif_input=str(SHIPPED_CIFS / "Imidazole.cif"),
+        cif_input="../../crystalatte/data/cif/Imidazole.cif",
         cif_output="./imidazole.xyz",
         cif_a=3, cif_b=3, cif_c=3,
         bfs_thresh=1.2,
@@ -33,9 +26,9 @@ def main():
         job_memory=None,
         verbose=2,
         custom_function=plugins.force_fields.polarization_energy_function,
-        pdb_file=str(FIXTURES / "imidazole.pdb"),
-        xml_file=str(FIXTURES / "imidazole.xml"),
-        atom_types_map=str(FIXTURES / "imidazole_map.csv"),
+        pdb_file="imidazole/imidazole.pdb",
+        xml_file="imidazole/imidazole.xml",
+        atom_types_map="imidazole/imidazole_map.csv",
     )
 
     print(f"\nImidazole crystal lattice energy (Drude polarizable FF): {cle:.6f} a.u.\n")
