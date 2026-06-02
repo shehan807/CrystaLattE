@@ -6,14 +6,9 @@ import jax
 from jax import jit
 import numpy as np
 import qcelemental as qcel
-import os
+import itertools
 
 # U_Pol START
-import time
-import sys
-
-sys.path.append(".")
-
 
 ONE_4PI_EPS0 = utils.ONE_4PI_EPS0
 
@@ -293,68 +288,50 @@ def drudeOpt(
     Qj_core,
     u_scale,
     k,
-    d_ref=None,
 ):
     """
     Iteratively determine core/shell displacements, d, by minimizing
     Uind w.r.t d.
 
     """
-    
+
     Uind_min = lambda Dij: Uind(
         Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k
     )
 
-    start = time.time()
     solver = NonlinearCG(fun=Uind_min, tol=1e-6)
     res = solver.run(init_params=Dij0)
-    end = time.time()
-    d_opt = res.params 
-    try:
-        if d_ref.any():
-            diff = jnp.linalg.norm(d_ref - d_opt)
-    except AttributeError:
-        pass
-    return d_opt
+    return res.params
 
-def polarization_energy(R_core, Z_core, atom_types):
-    # TODO: assign atom_types here, form R=r_core (NxM_{molecule}x3), r_shell starts as all heavy
-    # atoms from R, NxM_{molecules}x3, positions zero for hydrogens
-    print('\npolarization energy:')
-    print(R_core.shape)
-    print(R_core)
-    print(Z_core)
-    print(atom_types)
-    return -0.0105
+def cluster_induction_energy(qcel_mol, **kwargs):
+    """
+    Drude-oscillator induction energy of a single n-mer cluster.
 
-def polarization_energy_sample(qcel_mol, **kwargs):
+    Parses the cluster topology and force-field parameters, relaxes the
+    Drude (shell) displacements by SCF, and returns U_ind in kJ/mol. With
+    omm_decomp=True, also returns the OpenMM-style Drude / nonbonded /
+    static-Coulomb decomposition.
     """
-    Sample version of 'polarization_energy()' function to be generalized 
-    for polarization_energy_function(). Is currently functional for 
-    only dimers, although generalization should be easy. 
-    """
-    
+
     jax.config.update("jax_enable_x64", True)
-    ### These lines should live in polarization_energy_function later on ### 
+
     pdb_file = kwargs.get("pdb_file", None)
     xml_file = kwargs.get("xml_file", None)
     atom_types_map = kwargs.get("atom_types_map", None)
-    
+
     # fix topological issues in QCElemental (if any)
     qcel_mol = utils._fix_topological_order(qcel_mol)
- 
-    # update pdb_file with correct qcel_mol "topology" 
+
+    # update pdb_file with correct qcel_mol "topology"
     pdb_file = utils._create_topology(qcel_mol, pdb_file, atom_types_map)
-    
+
     xmlmd = utils.XmlMD(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
     xmlmd.parse_xml(xml_file)
 
     Rij, Dij = utils.get_Rij_Dij(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
-    Qi_core, Qi_shell, Qj_core, Qj_shell = utils.get_QiQj(xmlmd) 
+    Qi_core, Qi_shell, Qj_core, Qj_shell = utils.get_QiQj(xmlmd)
     k, u_scale = utils.get_pol_params(xmlmd)
 
-    ### These lines should live in polarization_energy_function later on ### 
-    
     Dij = drudeOpt(
         Rij,
         jnp.ravel(Dij),
@@ -402,64 +379,26 @@ def polarization_energy_function(
     kwargs passed to crystalatte.main() are passed to the energy function
     allowing the user to specify any additional arguments.
     """
-    pdb_file = kwargs.get("pdb_file", None)
-    xml_file = kwargs.get("xml_file", None)
-    atom_types = kwargs.get("atom_types", None)
-    residue_file = kwargs.get("residue_file", None)
-    print(f"qcel_mol = {qcel_mol}")
-    n_body_energy = -0.0105 
-    # update xyz coordinates with qcel_mol.geometry
-    atom_types_monomer = [[atom_types]]
-    atom_types_dimer = [[atom_types], [atom_types]]
-    atom_types_trimer = [[atom_types], [atom_types], [atom_types]]
-
-    atomic_numbers_monomer = [qcel_mol.get_fragment(0).atomic_numbers]
-    atomic_numbers_dimer = [atomic_numbers_monomer, atomic_numbers_monomer]
-    atomic_numbers_trimer = [atomic_numbers_monomer, atomic_numbers_monomer, atomic_numbers_monomer]
+    pol_kwargs = {
+        "pdb_file": kwargs.get("pdb_file"),
+        "xml_file": kwargs.get("xml_file"),
+        "residue_file": kwargs.get("residue_file"),
+        "atom_types_map": kwargs.get("atom_types_map"),
+    }
 
 
-    if len(nmer["monomers"]) == 3:
-        # Trimers: ΔE(3)ijk = Eijk − (ΔEij + ΔEik + ΔEjk) − (Ei + Ej + Ek)
-        m1, m2, m3 = qcel_mol.get_fragment(0), qcel_mol.get_fragment(1), qcel_mol.get_fragment(2)
-        v = np.reshape(m3.geometry, (-1, 1, 3))
-        r1 = np.reshape(m1.geometry, (-1, 1, 3))
-        r2 = np.reshape(m2.geometry, (-1, 1, 3))
-        r3 = np.reshape(m3.geometry, (-1, 1, 3))
-        Ei = polarization_energy(r1, atomic_numbers_monomer, atom_types_monomer)
-        Ej = polarization_energy(r1, atomic_numbers_monomer, atom_types_monomer)
-        Ek = polarization_energy(r1, atomic_numbers_monomer, atom_types_monomer)
-        Eij = polarization_energy(np.hstack((r1, r2)),  atomic_numbers_dimer, atom_types_dimer) - Ei - Ej
-        Eik = polarization_energy(np.hstack((r1, r3)),  atomic_numbers_dimer, atom_types_dimer) - Ei - Ek
-        Ejk = polarization_energy(np.hstack((r2, r3)),  atomic_numbers_dimer, atom_types_dimer) - Ej - Ek
-        Eijk = polarization_energy(np.hstack((r1, r2, r3)), atomic_numbers_trimer, atom_types_trimer) - (Eij + Eik + Ejk) - (Ei + Ej + Ek)
-        nmer['nambe'] = Eijk
-    elif len(nmer["monomers"]) == 2:
-        m1, m2 = qcel_mol.get_fragment(0), qcel_mol.get_fragment(1)
-        r1 = np.reshape(m1.geometry, (-1, 1, 3))
-        r2 = np.reshape(m2.geometry, (-1, 1, 3))
-        Ei = polarization_energy(np.reshape(r1, (-1, 1, 3)), atomic_numbers_monomer, atom_types_monomer)
-        Ej = polarization_energy(np.reshape(r2, (-1, 1, 3)), atomic_numbers_monomer, atom_types_monomer)
-        Eij = polarization_energy(np.hstack((r1, r2)), atomic_numbers_dimer, atom_types_dimer) - Ei - Ej
-        nmer['nambe'] = Eij
-        # Dimers: ΔE(2)ij = Eij − Ei − Ej
-        # m1, m2 = qcel_mol.get_fragment(0), qcel_mol.get_fragment(1)
-        # Ei = m1.nuclear_repulsion_energy()
-        # Ej = m2.nuclear_repulsion_energy()
-        # print(qcel_mol.get_fragment(0).atomic_numbers)
-        # print(qcel_mol.get_fragment([0, 1]).atomic_numbers)
-        # Eij = qcel_mol.get_fragment([0, 1]).nuclear_repulsion_energy()
-        # RA1, RA2 = m1.geometry, m2.geometry
-        # ZA1, ZA2 = m1.atomic_numbers, m2.atomic_numbers
-        # polarization_energy = openmm_inputs_polarization_energy(
-        #     pdb_file=pdb_file,
-        #     xml_file=xml_file,
-        #     residue_file=residue_file,
-        # )
-        # polarization_energy /= 2625.5 # convert from kJ/mol to Hartree
-        # nmer["nambe"] = polarization_energy
-    else:
-        raise ValueError("N-mer size not supported")
-    return
+    # Non-additive many-body induction by inclusion-exclusion over sub-clusters:
+    #   ΔE(N) = Σ_{|S|≥2} (−1)^(N−|S|) U_ind(S);  1-body induction is zero, so omitted.
+    n = len(nmer["monomers"])
+    nambe = 0.0
+    for k in range(2, n + 1):
+        for subset in itertools.combinations(range(n), k):
+            nambe += (-1) ** (n - k) * cluster_induction_energy(
+                qcel_mol.get_fragment(list(subset)), **pol_kwargs
+            )
+
+    nmer["nambe"] = float(nambe) / qcel.constants.hartree2kJmol
+    return nmer["nambe"]
 
 
 # U_Pol END
