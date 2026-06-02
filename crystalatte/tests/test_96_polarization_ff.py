@@ -8,7 +8,7 @@ import crystalatte
 import pytest
 import subprocess
 
-force_fields = pytest.importorskip("crystalatte.plugins.force_fields")
+polarization_ff = pytest.importorskip("crystalatte.plugins.polarization_ff")
 
 
 def test_polarization_ff_imidazole():
@@ -34,7 +34,7 @@ def test_polarization_ff_imidazole():
         bsse_type=None,
         job_memory=None,
         verbose=2,
-        custom_function=force_fields.polarization_energy_function,
+        custom_function=polarization_ff.polarization_energy_function,
         pdb_file="examples/polarization_ff/imidazole/imidazole.pdb",
         xml_file="examples/polarization_ff/imidazole/imidazole.xml",
         atom_types_map="examples/polarization_ff/imidazole/imidazole_map.csv",

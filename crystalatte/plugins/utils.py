@@ -1,18 +1,15 @@
-import os
 import jax.numpy as jnp
 from optax import safe_norm
-import time
 import qcelemental as qcel
 from qcelemental import constants
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from MDAnalysis import Universe 
-from copy import deepcopy 
+from MDAnalysis import Universe
+from copy import deepcopy
 import tempfile
 import networkx as nx
 from collections import defaultdict
-import matplotlib.pyplot as plt
 
 def visualize_isomorphism(G1, G2, mapping=None):
     """
@@ -21,6 +18,8 @@ def visualize_isomorphism(G1, G2, mapping=None):
         G1, G2: The two graphs
         mapping: Dict mapping nodes from G1 to G2 (optional)
     """
+    import matplotlib.pyplot as plt
+
     if mapping is None:
         GM = nx.isomorphism.GraphMatcher(G1, G2, 
                 node_match=lambda n1, n2: n1['symbol'] == n2['symbol'])
@@ -162,7 +161,7 @@ def _fix_topological_order(qcel_mol):
         # First check if the number of bonds is different - this is a more serious issue
         if len(reference_graph.edges) != len(current_graph.edges):
             error_msg = f"Bond count mismatch for fragment {i}.\n"
-            error_msg += f"Reference has {len(reference_graph.edges)} bonds, current fragment has {len(current_edges.edges)} bonds.\n"
+            error_msg += f"Reference has {len(reference_graph.edges)} bonds, current fragment has {len(current_graph.edges)} bonds.\n"
             error_msg += "Fragments must have the same number of bonds for topological ordering."
             raise ValueError(error_msg)
         
@@ -276,7 +275,11 @@ class XmlMD:
 
         # Additional attributes:
         self.qcel_mol         = qcel_mol
-        self.atom_types_map   = pd.read_csv(atom_types_map, names=["From", "To"])
+        self.atom_types_map   = (
+            pd.read_csv(atom_types_map, names=["From", "To"])
+            if atom_types_map is not None
+            else None
+        )
 
     def _findExclusions(self, bonds, atoms, drudes, maxSeparation=4):
         """

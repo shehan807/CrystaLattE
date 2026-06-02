@@ -26,7 +26,7 @@ def main():
         bsse_type=None,
         job_memory=None,
         verbose=2,
-        custom_function=plugins.force_fields.polarization_energy_function,
+        custom_function=plugins.polarization_ff.polarization_energy_function,
         pdb_file="imidazole/imidazole.pdb",
         xml_file="imidazole/imidazole.xml",
         atom_types_map="imidazole/imidazole_map.csv",
