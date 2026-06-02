@@ -344,7 +344,7 @@ def cluster_induction_energy(qcel_mol, **kwargs):
     )
     
     U_ind = Uind(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
-    if kwargs.get("omm_decomp") is not None and kwargs.get("omm_decomp"):
+    if kwargs.get("omm_decomp"):
         Ues = Ucoul_static(Rij, Qi_shell, Qj_shell, Qi_core, Qj_core)
         U_df = _DrudeForce(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k)
         U_nb = _NonbondedForce(Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale)
@@ -382,10 +382,8 @@ def polarization_energy_function(
     pol_kwargs = {
         "pdb_file": kwargs.get("pdb_file"),
         "xml_file": kwargs.get("xml_file"),
-        "residue_file": kwargs.get("residue_file"),
         "atom_types_map": kwargs.get("atom_types_map"),
     }
-
 
     # Non-additive many-body induction by inclusion-exclusion over sub-clusters:
     #   ΔE(N) = Σ_{|S|≥2} (−1)^(N−|S|) U_ind(S);  1-body induction is zero, so omitted.
