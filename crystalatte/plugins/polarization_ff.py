@@ -296,7 +296,7 @@ def drudeOpt(
         Rij, Dij, Qi_shell, Qj_shell, Qi_core, Qj_core, u_scale, k
     )
 
-    solver = NonlinearCG(fun=Uind_min, tol=1e-6)
+    solver = NonlinearCG(fun=Uind_min, tol=1e-8, maxiter=500)
     res = solver.run(init_params=Dij0)
     return res.params
 
