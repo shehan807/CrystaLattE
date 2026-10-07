@@ -381,8 +381,9 @@ def _check_inputs(qcel_mol, kwargs):
         if frag_elems != map_elems:
             raise ValueError(
                 f"Monomer {i} composition {dict(frag_elems)} does not match `atom_types_map` "
-                f"{dict(map_elems)}. The FF supports one molecule type per crystal; check that "
-                "`bfs_thresh` yields whole molecules and that the map lists every atom."
+                f"{dict(map_elems)}. Partial monomers usually mean the supercell is too small for "
+                "`r_cut_monomer` (increase cif_a/cif_b/cif_c); otherwise check `bfs_thresh` and that "
+                "the map lists every atom of the (single) molecule type."
             )
 
 def polarization_energy_function(
