@@ -50,3 +50,34 @@ jobs:
 
       run: |
         pytest -v --color=yes crystalatte/tests/
+
+  test-polarization-ff:
+    # Optional lane: JAX Drude polarization plugin (skipped by `test` via importorskip).
+    name: polarization_ff (optional)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Create Environment
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        python-version: "3.12"
+        environment-file: examples/polarization_ff/pol_ff_cle.yml
+        activate-environment: pol_ff_cle
+        auto-activate-base: false
+        show-channel-urls: true
+
+    - name: Install crystalatte
+      shell: bash -l {0}
+      run: |
+        python -m pip install pytest
+        python -m pip install . --no-deps
+        # Fail loudly (instead of skipping) if the plugin cannot import.
+        python -c "import crystalatte.plugins.polarization_ff"
+
+    - name: Run tests
+      shell: bash -l {0}
+      run: |
+        pytest -v --color=yes crystalatte/tests/test_96_polarization_ff.py

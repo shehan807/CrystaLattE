@@ -503,8 +503,8 @@ def _map_mol(mol, _map):
     return combined_mol
 
 
-def _create_topology(qcel_mol, old_pdb_path, atom_types_map):
-    """Create new topology based on QCElemental "topology"."""
+def _create_topology(qcel_mol, old_pdb_path, atom_types_map, out_dir):
+    """Create new topology based on QCElemental "topology", written to `out_dir`."""
     
     import warnings
     # suppress some MDAnalysis warnings about PDB files
@@ -515,7 +515,7 @@ def _create_topology(qcel_mol, old_pdb_path, atom_types_map):
     residue_name = resnames.pop() if len(resnames) == 1 else None
     
     old_pdb_path = Path(old_pdb_path)
-    tmp_pdb = old_pdb_path.with_name(old_pdb_path.stem + "_tmp" + old_pdb_path.suffix)
+    tmp_pdb = Path(out_dir) / (old_pdb_path.stem + "_tmp" + old_pdb_path.suffix)
    
     qcel_mol = _map_mol(qcel_mol, atom_types_map)
     _molecule_to_pdb_file(qcel_mol, tmp_pdb, residue_name, atom_types_map) 
