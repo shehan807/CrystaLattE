@@ -6,7 +6,6 @@ import jax
 from jax import jit
 import qcelemental as qcel
 import itertools
-import tempfile
 from collections import Counter
 from pathlib import Path
 
@@ -318,16 +317,11 @@ def cluster_induction_energy(qcel_mol, **kwargs):
     static-Coulomb decomposition.
     """
 
-    pdb_file = kwargs.get("pdb_file", None)
     xml_file = kwargs.get("xml_file", None)
     atom_types_map = kwargs.get("atom_types_map", None)
 
     # fix topological issues in QCElemental (if any)
     qcel_mol = utils._fix_topological_order(qcel_mol)
-
-    # update pdb_file with correct qcel_mol "topology"
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        pdb_file = utils._create_topology(qcel_mol, pdb_file, atom_types_map, tmp_dir)
 
     xmlmd = utils.XmlMD(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
     xmlmd.parse_xml(xml_file)
@@ -357,7 +351,6 @@ def cluster_induction_energy(qcel_mol, **kwargs):
         return U_ind
 
 _REQUIRED_KWARGS = {
-    "pdb_file": ".pdb",
     "xml_file": ".xml",
     "atom_types_map": ".csv",
 }
@@ -414,7 +407,6 @@ def polarization_energy_function(
     `method`, `bsse_type`, and `job_memory` are accepted but ignored here.
 
     Required kwargs (forwarded from crystalatte.main()):
-    - pdb_file: monomer PDB providing the residue name
     - xml_file: OpenMM-style Drude FF parameters
     - atom_types_map: CSV mapping FF atom names to `<element><index>` of each monomer
 
@@ -424,7 +416,6 @@ def polarization_energy_function(
     """
     _check_inputs(qcel_mol, kwargs)
     pol_kwargs = {
-        "pdb_file": kwargs.get("pdb_file"),
         "xml_file": kwargs.get("xml_file"),
         "atom_types_map": kwargs.get("atom_types_map"),
     }
