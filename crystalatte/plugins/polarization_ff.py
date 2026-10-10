@@ -6,6 +6,13 @@ import jax
 from jax import jit
 import qcelemental as qcel
 import itertools
+from collections import Counter
+from pathlib import Path
+
+import pandas as pd
+
+# NOTE: process-wide; the Drude SCF needs float64 precision.
+jax.config.update("jax_enable_x64", True)
 
 ONE_4PI_EPS0 = utils.ONE_4PI_EPS0
 
@@ -310,17 +317,11 @@ def cluster_induction_energy(qcel_mol, **kwargs):
     static-Coulomb decomposition.
     """
 
-    jax.config.update("jax_enable_x64", True)
-
-    pdb_file = kwargs.get("pdb_file", None)
     xml_file = kwargs.get("xml_file", None)
     atom_types_map = kwargs.get("atom_types_map", None)
 
     # fix topological issues in QCElemental (if any)
     qcel_mol = utils._fix_topological_order(qcel_mol)
-
-    # update pdb_file with correct qcel_mol "topology"
-    pdb_file = utils._create_topology(qcel_mol, pdb_file, atom_types_map)
 
     xmlmd = utils.XmlMD(qcel_mol=qcel_mol, atom_types_map=atom_types_map)
     xmlmd.parse_xml(xml_file)
@@ -349,6 +350,42 @@ def cluster_induction_energy(qcel_mol, **kwargs):
     else:
         return U_ind
 
+_REQUIRED_KWARGS = {
+    "xml_file": ".xml",
+    "atom_types_map": ".csv",
+}
+
+def _check_inputs(qcel_mol, kwargs):
+    """Validate user-supplied FF inputs, with guidance on how to fix them."""
+    for key, suffix in _REQUIRED_KWARGS.items():
+        path = kwargs.get(key)
+        if path is None:
+            raise ValueError(
+                f"polarization_energy_function requires `{key}=<path to {suffix}>` "
+                "passed as a keyword argument to crystalatte.main()."
+            )
+        path = Path(path)
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"`{key}` not found: '{path}' (resolved from cwd '{Path.cwd()}'). "
+                "Relative paths are resolved from the directory crystalatte.main() is run in."
+            )
+        if path.suffix.lower() != suffix:
+            raise ValueError(f"`{key}` should be a {suffix} file, got '{path.name}'.")
+
+    # Each monomer must match the atom-type map ("To" column = <element><index>).
+    type_map = pd.read_csv(kwargs["atom_types_map"], names=["From", "To"])
+    map_elems = Counter("".join(c for c in t if c.isalpha()).upper() for t in type_map["To"])
+    for i, frag in enumerate(qcel_mol.fragments):
+        frag_elems = Counter(qcel_mol.symbols[a].upper() for a in frag)
+        if frag_elems != map_elems:
+            raise ValueError(
+                f"Monomer {i} composition {dict(frag_elems)} does not match `atom_types_map` "
+                f"{dict(map_elems)}. Partial monomers usually mean the supercell is too small for "
+                "`r_cut_monomer` (increase cif_a/cif_b/cif_c); otherwise check `bfs_thresh` and that "
+                "the map lists every atom of the (single) molecule type."
+            )
+
 def polarization_energy_function(
     qcel_mol: qcel.models.Molecule,
     cif_output: str,
@@ -365,19 +402,21 @@ def polarization_energy_function(
     **kwargs,
 ):
     """
-    Every crystalatte energy function plugin must accept the above arguments.
+    Drude-oscillator induction plugin for crystalatte.main(custom_function=...).
 
-    Takes the `nmers` dictionary; `keynmer`, the key of a given N-mer of
-    the N-mers dictionary;
+    Every crystalatte energy function plugin must accept the above arguments;
+    `method`, `bsse_type`, and `job_memory` are accepted but ignored here.
 
-    Results are stored in the `nmer` dictionary under the key `nambe` standing
-    for non-additive many-body energy.
+    Required kwargs (forwarded from crystalatte.main()):
+    - xml_file: OpenMM-style Drude FF parameters
+    - atom_types_map: CSV mapping FF atom names to `<element><index>` of each monomer
 
-    kwargs passed to crystalatte.main() are passed to the energy function
-    allowing the user to specify any additional arguments.
+    Stores the non-additive many-body induction energy, in Hartree, in
+    `nmer["nambe"]` and returns it. Note that crystalatte's `output_data`
+    reports `nambe` in kJ/mol.
     """
+    _check_inputs(qcel_mol, kwargs)
     pol_kwargs = {
-        "pdb_file": kwargs.get("pdb_file"),
         "xml_file": kwargs.get("xml_file"),
         "atom_types_map": kwargs.get("atom_types_map"),
     }

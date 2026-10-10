@@ -35,7 +35,6 @@ def test_polarization_ff_imidazole():
         job_memory=None,
         verbose=2,
         custom_function=polarization_ff.polarization_energy_function,
-        pdb_file="examples/polarization_ff/imidazole/imidazole.pdb",
         xml_file="examples/polarization_ff/imidazole/imidazole.xml",
         atom_types_map="examples/polarization_ff/imidazole/imidazole_map.csv",
     )
